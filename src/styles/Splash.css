@@ -1,0 +1,92 @@
+.splash-container {
+    background: radial-gradient(circle at center, #38768B 0%, #2F5D6E 100%);
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+    color: white;
+}
+
+.splash-aura {
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(167, 196, 188, 0.2) 0%, transparent 70%);
+    border-radius: 50%;
+    filter: blur(40px);
+    animation: aura-pulse 4s infinite ease-in-out;
+}
+
+@keyframes aura-pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.3;
+    }
+
+    50% {
+        transform: scale(1.2);
+        opacity: 0.5;
+    }
+}
+
+.soulify-logo-pulse {
+    width: 140px;
+    height: 140px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 2rem;
+    position: relative;
+}
+
+.soulify-logo-pulse::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: white;
+    opacity: 0.1;
+    border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
+    animation: blob-morph 8s infinite alternate ease-in-out;
+    z-index: -1;
+}
+
+@keyframes blob-morph {
+    0% {
+        border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
+    }
+
+    100% {
+        border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+    }
+}
+
+.splash-text-container {
+    text-align: center;
+    z-index: 10;
+}
+
+.splash-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 5rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(to bottom, #ffffff 0%, #A7C4BC 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.splash-subtitle {
+    font-size: 1.2rem;
+    letter-spacing: 0.5em;
+    color: rgba(255, 255, 255, 0.6);
+    text-transform: uppercase;
+}
