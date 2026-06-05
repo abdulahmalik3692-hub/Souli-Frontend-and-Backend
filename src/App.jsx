@@ -2,6 +2,7 @@ import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Loading from './pages/Loading';
+import ProtectedRoute from './components/ProtectedRoute';
 
 // Performance Optimization: Code Splitting
 const Splash = lazy(() => import('./pages/Splash'));
@@ -25,12 +26,12 @@ function App() {
             <Route path="/home" element={<Home />} />
             <Route path="/login" element={<Auth />} />
             <Route path="/signup" element={<Auth />} />
-            <Route path="/chat" element={<Chat />} />
+            <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/about" element={<About />} />
             <Route path="/work" element={<Work />} />
             <Route path="/why" element={<Why />} />
-            <Route path="/report" element={<Report />} />
+            <Route path="/report" element={<ProtectedRoute><Report /></ProtectedRoute>} />
             <Route path="/loading" element={<Loading />} />
             <Route path="*" element={<ErrorPage />} />
           </Routes>

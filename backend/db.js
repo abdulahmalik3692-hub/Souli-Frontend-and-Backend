@@ -21,6 +21,7 @@ const client = new MongoClient(MONGODB_URI, {
 let db;
 export let moodLogs;
 export let users;
+export let chatSessions;
 
 export async function connectDb() {
   try {
@@ -29,6 +30,7 @@ export async function connectDb() {
     
     moodLogs = db.collection('mood_logs');
     users = db.collection('users');
+    chatSessions = db.collection('chat_sessions');
     
     console.log(`Connected to MongoDB database: ${DB_NAME}`);
   } catch (error) {
@@ -166,6 +168,7 @@ export async function verifyUserLogin(email, password) {
     
     const isVerified = !!user.verified;
     const userData = {
+      id: user._id.toString(),  // serializable string ID for localStorage
       name: user.name,
       email: user.email
     };
@@ -173,5 +176,90 @@ export async function verifyUserLogin(email, password) {
   } catch (error) {
     console.error("Error verifying user login:", error);
     return [false, false, null];
+  }
+}
+
+// ── Chat Session Persistence ──────────────────────────────────────
+
+/**
+ * Upsert a chat session. Each session_id is one conversation.
+ * title is auto-derived from the first user message if not provided.
+ */
+export async function saveChatSession(userId, sessionId, messages, title) {
+  try {
+    if (!chatSessions) return false;
+    const sessionTitle = title || (messages[0]?.text?.slice(0, 50) || 'New Session');
+    await chatSessions.updateOne(
+      { user_id: userId, session_id: sessionId },
+      {
+        $set: {
+          user_id: userId,
+          session_id: sessionId,
+          title: sessionTitle,
+          messages: messages,
+          updated_at: new Date()
+        },
+        $setOnInsert: {
+          created_at: new Date()
+        }
+      },
+      { upsert: true }
+    );
+    return true;
+  } catch (error) {
+    console.error("Error saving chat session:", error);
+    return false;
+  }
+}
+
+/**
+ * Get a lightweight list of recent sessions for the sidebar (no messages).
+ */
+export async function getChatSessionList(userId, limit = 20) {
+  try {
+    if (!chatSessions) return [];
+    const sessions = await chatSessions
+      .find({ user_id: userId })
+      .sort({ updated_at: -1 })
+      .limit(limit)
+      .project({ messages: 0 })  // don't send full messages in list
+      .toArray();
+    return sessions;
+  } catch (error) {
+    console.error("Error fetching chat session list:", error);
+    return [];
+  }
+}
+
+/**
+ * Load a single full session (with all messages) by session_id.
+ */
+export async function getChatSessionById(userId, sessionId) {
+  try {
+    if (!chatSessions) return null;
+    return await chatSessions.findOne({ user_id: userId, session_id: sessionId });
+  } catch (error) {
+    console.error("Error fetching chat session by id:", error);
+    return null;
+  }
+}
+
+/**
+ * Reassign all chat sessions from a guest or legacy id to the logged-in user's MongoDB id.
+ */
+export async function migrateChatSessions(fromUserId, toUserId) {
+  try {
+    if (!chatSessions) return 0;
+    if (!fromUserId || !toUserId || fromUserId === toUserId) {
+      return 0;
+    }
+    const result = await chatSessions.updateMany(
+      { user_id: fromUserId },
+      { $set: { user_id: toUserId } }
+    );
+    return result.modifiedCount ?? 0;
+  } catch (error) {
+    console.error("Error migrating chat sessions:", error);
+    return 0;
   }
 }

@@ -19,7 +19,8 @@ const projects = [
     accent: '#38768B',
     stat: ['94%', 'Accuracy'],
     year: '2024',
-    icon: Activity
+    icon: Activity,
+    videoSrc: 'https://media.w3.org/2010/05/sintel/trailer.mp4'
   },
   {
     id: '02',
@@ -30,7 +31,8 @@ const projects = [
     accent: '#7B52CC',
     stat: ['38%', 'Mood Lift'],
     year: '2024',
-    icon: Layers
+    icon: Layers,
+    videoSrc: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4'
   },
   {
     id: '03',
@@ -41,7 +43,8 @@ const projects = [
     accent: '#EC4899',
     stat: ['500K+', 'Reports'],
     year: '2023',
-    icon: TrendingUp
+    icon: TrendingUp,
+    videoSrc: 'https://www.w3schools.com/html/mov_bbb.mp4'
   },
   {
     id: '04',
@@ -52,7 +55,8 @@ const projects = [
     accent: '#10B981',
     stat: ['200+', 'Sessions'],
     year: '2023',
-    icon: Users
+    icon: Users,
+    videoSrc: 'https://www.w3schools.com/tags/movie.mp4'
   },
 ];
 
@@ -71,12 +75,29 @@ function ProjectCard({ project, index }) {
       
       {/* Project Image / Visual Placeholder */}
       <div className="w-full lg:w-1/2 relative">
-        <motion.div className="relative z-10 w-full aspect-[4/3] rounded-3xl overflow-hidden shadow-2xl border border-white/10 group bg-[#0A1E26]/80 backdrop-blur-md p-8 flex flex-col justify-between">
-          <div className="absolute inset-0 opacity-20 group-hover:opacity-40 transition-opacity duration-700" style={{ background: `linear-gradient(135deg, ${project.accent}, transparent)` }} />
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wMikiLz48L3N2Zz4=')] mix-blend-overlay" />
+        <motion.div className="relative z-10 w-full aspect-[4/3] rounded-3xl overflow-hidden shadow-2xl border border-white/10 bg-[#0a1c24] flex flex-col justify-between transition-transform duration-500 group-hover:scale-[1.02]">
+          
+          {/* Video Background */}
+          <div className="absolute inset-0 z-0">
+            <video 
+              autoPlay 
+              loop 
+              muted 
+              playsInline 
+              className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-screen scale-150"
+              style={{ filter: 'blur(20px) contrast(200%) grayscale(50%) hue-rotate(45deg)' }}
+            >
+              <source src={project.videoSrc} type="video/mp4" />
+            </video>
+            {/* Gradient Overlay for Text Readability */}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0a1c24] via-[#0a1c24]/40 to-transparent" />
+          </div>
+
+          <div className="absolute inset-0 opacity-20" style={{ background: `linear-gradient(135deg, ${project.accent}, transparent)` }} />
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wMikiLz48L3N2Zz4=')] mix-blend-overlay z-0" />
           
           <div className="flex justify-between items-start relative z-10">
-            <span className="text-6xl font-black text-white/5">{project.id}</span>
+            <span className="font-['Playfair_Display'] text-[80px] font-black text-white/10 leading-none">{project.id}</span>
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center border border-white/10 bg-white/5 backdrop-blur-md">
                <project.icon size={28} style={{ color: project.accent }} />
             </div>
@@ -106,7 +127,7 @@ function ProjectCard({ project, index }) {
           <span className="text-[#A7C4BC] text-sm font-medium">{project.year}</span>
         </div>
         
-        <h2 className="text-4xl md:text-5xl font-bold text-white leading-tight">
+        <h2 className="font-['Playfair_Display'] text-4xl md:text-6xl font-bold text-white leading-[1.1] tracking-tight">
           {project.title}
         </h2>
         
@@ -146,7 +167,7 @@ export default function Work() {
           </motion.div>
 
           <motion.h1 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.15 }}
-            className="text-5xl md:text-7xl font-bold tracking-tight mb-8 leading-tight">
+            className="font-['Playfair_Display'] text-[56px] md:text-[80px] lg:text-[96px] font-black tracking-tight mb-8 leading-[1.05]">
             The Work Behind <br />
             <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#7EC8C8] to-[#38768B]">Every Breakthrough</span>
           </motion.h1>
@@ -192,7 +213,7 @@ export default function Work() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl h-[400px] bg-[#38768B]/20 rounded-[100%] blur-[120px] pointer-events-none" />
         
         <motion.div className="max-w-3xl mx-auto text-center relative z-10" {...fadeUp()}>
-          <h2 className="text-4xl md:text-6xl font-bold mb-6">See the Work <br/><span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-[#A7C4BC]">In Action</span></h2>
+          <h2 className="font-['Playfair_Display'] text-[48px] md:text-[72px] font-black mb-6 leading-[1.1] tracking-tight">See the Work <br/><span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-[#A7C4BC]">In Action</span></h2>
           <p className="text-[#A7C4BC] text-lg mb-10">The best way to understand Soulify is to feel it yourself.</p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">

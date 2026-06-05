@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import Navbar from './Navbar';
 import Footer from './Footer';
-import SoulButterfly from './SoulButterfly';
+import ButterflyCursor from './ButterflyCursor';
+import MascotWidget from './MascotWidget';
 
 // Lightweight CSS fade for page transitions - no artificial delays
 const pageStyle = {
@@ -34,11 +35,12 @@ const Layout = ({ children }) => {
     return (
         <>
             <style>{globalStyle}</style>
+            <ButterflyCursor />
             {!hideLayout && <Navbar />}
-            {location.pathname === '/home' && <SoulButterfly />}
             <main key={key} style={pageStyle}>
                 {children}
             </main>
+            {location.pathname === '/home' && <MascotWidget />}
             {!hideLayout && <Footer />}
         </>
     );

@@ -24,8 +24,8 @@
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: #050e12;
-  color: var(--text-main);
+  background-color: #F2F5F7;
+  color: #1a2e36;
   min-height: 100vh;
   overflow-x: hidden;
   line-height: 1.5;
@@ -75,7 +75,7 @@ h1 {
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 4px 15px rgba(56, 118, 139, 0.4);
 }
 
 .btn-secondary {
@@ -110,7 +110,7 @@ h1 {
 .input-field:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 0 0 2px rgba(56, 118, 139, 0.2);
 }
 
 /* Page Layout */

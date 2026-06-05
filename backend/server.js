@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import Groq from 'groq-sdk';
 import {
   connectDb,
   createOrUpdateUnverifiedUser,
@@ -8,7 +9,11 @@ import {
   verifyUserLogin,
   getUserByEmail,
   moodLogs,
-  users
+  users,
+  saveChatSession,
+  getChatSessionList,
+  getChatSessionById,
+  migrateChatSessions
 } from './db.js';
 import { EMOTION_MOOD_SCORES } from './constants.js';
 
@@ -206,7 +211,71 @@ app.post('/auth/login', async (req, res) => {
   }
 });
 
-// ── Dynamic Reporting & Mood Insights Endpoint ────────────────────────
+// ── Chat Session Endpoints ──────────────────────────────────────
+
+// Move guest / legacy sessions onto the authenticated user's MongoDB id
+app.post('/chat/migrate', async (req, res) => {
+  const { from_user_id, to_user_id } = req.body;
+  if (!from_user_id || !to_user_id) {
+    return res.status(400).json({ status: 'error', message: 'Missing from_user_id or to_user_id' });
+  }
+  try {
+    const count = await migrateChatSessions(from_user_id, to_user_id);
+    res.json({ status: 'success', migrated: count });
+  } catch (err) {
+    console.error("Error in /chat/migrate:", err);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+});
+
+// Save / update a chat session (called after each AI reply)
+app.post('/chat/save', async (req, res) => {
+  const { user_id, session_id, messages } = req.body;
+  if (!user_id || !session_id || !Array.isArray(messages)) {
+    return res.status(400).json({ status: 'error', message: 'Missing user_id, session_id, or messages' });
+  }
+  try {
+    const ok = await saveChatSession(user_id, session_id, messages);
+    if (!ok) return res.json({ status: 'error', message: 'Failed to save session' });
+    res.json({ status: 'success' });
+  } catch (err) {
+    console.error("Error in /chat/save:", err);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+});
+
+// Get sidebar list of recent sessions (no full messages)
+app.get('/chat/history', async (req, res) => {
+  const { user_id } = req.query;
+  if (!user_id) {
+    return res.status(400).json({ status: 'error', message: 'Missing user_id' });
+  }
+  try {
+    const sessions = await getChatSessionList(user_id);
+    res.json({ status: 'success', sessions });
+  } catch (err) {
+    console.error("Error in /chat/history:", err);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+});
+
+// Load a single full session by session_id
+app.get('/chat/session', async (req, res) => {
+  const { user_id, session_id } = req.query;
+  if (!user_id || !session_id) {
+    return res.status(400).json({ status: 'error', message: 'Missing user_id or session_id' });
+  }
+  try {
+    const session = await getChatSessionById(user_id, session_id);
+    if (!session) return res.json({ status: 'error', message: 'Session not found' });
+    res.json({ status: 'success', session });
+  } catch (err) {
+    console.error("Error in /chat/session:", err);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+});
+
+// ── Dynamic Reporting & Mood Insights Endpoint ──────────────────────────
 
 app.get('/report', async (req, res) => {
   const { user_id, duration } = req.query;
@@ -226,6 +295,17 @@ app.get('/report', async (req, res) => {
     since.setDate(since.getDate() - days);
 
     // Fetch mood logs from DB
+    if (!moodLogs) {
+      return res.json({
+        label: getDurationLabel(activeDuration),
+        avgMood: 6.0,
+        calmIncrease: 0,
+        dominant: "Calm",
+        insights: "Database connection is currently unavailable. Analytics cannot be generated at this time. Please check your MongoDB Atlas IP Whitelist.",
+        chartData: getEmptyChartData(activeDuration)
+      });
+    }
+
     const logs = await moodLogs.find({
       user_id: user_id,
       timestamp: { $gte: since }
@@ -358,32 +438,32 @@ function getDurationLabel(duration) {
 function getEmptyChartData(duration) {
   if (duration === '1w') {
     return [
-      { day: "Mon", mood: 6 }, { day: "Tue", mood: 6 },
-      { day: "Wed", mood: 6 }, { day: "Thu", mood: 6 },
-      { day: "Fri", mood: 6 }, { day: "Sat", mood: 6 },
-      { day: "Sun", mood: 6 }
+      { day: "Mon", mood: null }, { day: "Tue", mood: null },
+      { day: "Wed", mood: null }, { day: "Thu", mood: null },
+      { day: "Fri", mood: null }, { day: "Sat", mood: null },
+      { day: "Sun", mood: null }
     ];
   }
   if (duration === '2w') {
     return [
-      { day: "W1-M", mood: 6 }, { day: "W1-W", mood: 6 },
-      { day: "W1-F", mood: 6 }, { day: "W1-S", mood: 6 },
-      { day: "W2-M", mood: 6 }, { day: "W2-W", mood: 6 },
-      { day: "W2-F", mood: 6 }, { day: "W2-S", mood: 6 }
+      { day: "W1-M", mood: null }, { day: "W1-W", mood: null },
+      { day: "W1-F", mood: null }, { day: "W1-S", mood: null },
+      { day: "W2-M", mood: null }, { day: "W2-W", mood: null },
+      { day: "W2-F", mood: null }, { day: "W2-S", mood: null }
     ];
   }
   if (duration === '3w') {
     return [
-      { day: "W1", mood: 6 }, { day: "W1.5", mood: 6 },
-      { day: "W2", mood: 6 }, { day: "W2.5", mood: 6 },
-      { day: "W3", mood: 6 }, { day: "W3.5", mood: 6 }
+      { day: "W1", mood: null }, { day: "W1.5", mood: null },
+      { day: "W2", mood: null }, { day: "W2.5", mood: null },
+      { day: "W3", mood: null }, { day: "W3.5", mood: null }
     ];
   }
   return [
-    { day: "Week 1", mood: 6 },
-    { day: "Week 2", mood: 6 },
-    { day: "Week 3", mood: 6 },
-    { day: "Week 4", mood: 6 }
+    { day: "Week 1", mood: null },
+    { day: "Week 2", mood: null },
+    { day: "Week 3", mood: null },
+    { day: "Week 4", mood: null }
   ];
 }
 
@@ -404,12 +484,10 @@ function compileChartPoints(logs, duration) {
           d.getDate() === targetDate.getDate();
       });
 
-      let moodVal = 6.0;
+      let moodVal = null;
       if (dayLogs.length > 0) {
         const sum = dayLogs.reduce((acc, log) => acc + (EMOTION_MOOD_SCORES[log.emotion] || 6.0), 0);
         moodVal = parseFloat((sum / dayLogs.length).toFixed(1));
-      } else {
-        moodVal = result.length > 0 ? result[result.length - 1].mood : 6.0;
       }
       result.push({ day: label, mood: moodVal });
     }
@@ -430,12 +508,10 @@ function compileChartPoints(logs, duration) {
         return t >= binStart && t < binEnd;
       });
 
-      let moodVal = 6.0;
+      let moodVal = null;
       if (binLogs.length > 0) {
         const sum = binLogs.reduce((acc, log) => acc + (EMOTION_MOOD_SCORES[log.emotion] || 6.0), 0);
         moodVal = parseFloat((sum / binLogs.length).toFixed(1));
-      } else {
-        moodVal = result.length > 0 ? result[result.length - 1].mood : 6.0;
       }
       result.push({ day: labels[i], mood: moodVal });
     }
@@ -456,12 +532,10 @@ function compileChartPoints(logs, duration) {
         return t >= binStart && t < binEnd;
       });
 
-      let moodVal = 6.0;
+      let moodVal = null;
       if (binLogs.length > 0) {
         const sum = binLogs.reduce((acc, log) => acc + (EMOTION_MOOD_SCORES[log.emotion] || 6.0), 0);
         moodVal = parseFloat((sum / binLogs.length).toFixed(1));
-      } else {
-        moodVal = result.length > 0 ? result[result.length - 1].mood : 6.0;
       }
       result.push({ day: labels[i], mood: moodVal });
     }
@@ -482,12 +556,10 @@ function compileChartPoints(logs, duration) {
       return t >= binStart && t < binEnd;
     });
 
-    let moodVal = 6.0;
+    let moodVal = null;
     if (binLogs.length > 0) {
       const sum = binLogs.reduce((acc, log) => acc + (EMOTION_MOOD_SCORES[log.emotion] || 6.0), 0);
       moodVal = parseFloat((sum / binLogs.length).toFixed(1));
-    } else {
-      moodVal = result.length > 0 ? result[result.length - 1].mood : 6.0;
     }
     result.push({ day: labels[i], mood: moodVal });
   }

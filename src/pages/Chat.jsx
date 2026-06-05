@@ -9,6 +9,7 @@ import {
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { PromptInputBox } from "../components/ui/ai-prompt-box";
+import logo from "../assets/new_logo.png";
 
 function cn(...inputs) {
   return twMerge(clsx(inputs));
@@ -116,6 +117,11 @@ const getOrCreateUserId = () => {
     if (savedUser) {
         try {
             const parsed = JSON.parse(savedUser);
+            // Use the real MongoDB _id (stored as 'id') so mood logs are linked correctly
+            if (parsed && parsed.id) {
+                return parsed.id;
+            }
+            // Fallback to email if id is somehow missing (older sessions)
             if (parsed && parsed.email) {
                 return parsed.email;
             }
@@ -136,6 +142,8 @@ export default function Chat() {
     const [theme, setTheme] = useState(DEFAULT_THEME);
     const [isTyping, setIsTyping] = useState(false);
     const [sidebarHovered, setSidebarHovered] = useState(false);
+    const [chatHistory, setChatHistory] = useState([]);  // real sessions from DB
+    const [historyLoading, setHistoryLoading] = useState(true);
     
     const messagesEndRef = useRef(null);
     const firstKeyStrokeTimeRef = useRef(null);
@@ -162,11 +170,41 @@ export default function Chat() {
         return () => window.removeEventListener("keydown", handleGlobalKeyDown);
     }, []);
 
+    // Load real chat history from Node backend on mount
+    useEffect(() => {
+        const userId = getOrCreateUserId();
+        if (!userId) { setHistoryLoading(false); return; }
+
+        fetch(`http://127.0.0.1:5000/chat/history?user_id=${encodeURIComponent(userId)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'success') setChatHistory(data.sessions);
+            })
+            .catch(err => console.warn("Could not load chat history:", err))
+            .finally(() => setHistoryLoading(false));
+    }, []);
+
     const startNewSession = () => {
         setMessages([]);
         setTheme(DEFAULT_THEME);
         const newSid = "session_" + Math.random().toString(36).substring(2, 15);
         sessionStorage.setItem("soulify_session_id", newSid);
+    };
+
+    // Load a past session's full messages when clicked in sidebar
+    const loadSession = async (sessionId) => {
+        const userId = getOrCreateUserId();
+        try {
+            const res = await fetch(`http://127.0.0.1:5000/chat/session?user_id=${encodeURIComponent(userId)}&session_id=${encodeURIComponent(sessionId)}`);
+            const data = await res.json();
+            if (data.status === 'success' && data.session?.messages) {
+                sessionStorage.setItem("soulify_session_id", sessionId);
+                setMessages(data.session.messages);
+                setTheme(DEFAULT_THEME);
+            }
+        } catch (err) {
+            console.warn("Could not load session:", err);
+        }
     };
 
     const handleSend = async (messageText) => {
@@ -213,13 +251,33 @@ export default function Chat() {
 
             const data = await response.json();
             
-            // 4. Update the messages with AI response
-            setMessages((prev) => [
-                ...prev,
-                { id: Date.now(), text: data.reply, sender: "ai" }
-            ]);
+            const aiMessage = { id: Date.now(), text: data.reply, sender: "ai" };
 
-            // 5. Update visual background theme dynamically based on emotion class & recommended accent colors
+            // 4. Update the messages with AI response
+            setMessages((prev) => {
+                const updated = [...prev, aiMessage];
+
+                // 5. Persist the full session to Node backend (fire-and-forget)
+                const sessionId = getOrCreateSessionId();
+                const userId = getOrCreateUserId();
+                fetch('http://127.0.0.1:5000/chat/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId, session_id: sessionId, messages: updated })
+                }).then(r => r.json()).then(saved => {
+                    // Refresh sidebar list silently after save
+                    if (saved.status === 'success') {
+                        fetch(`http://127.0.0.1:5000/chat/history?user_id=${encodeURIComponent(userId)}`)
+                            .then(r => r.json())
+                            .then(histData => { if (histData.status === 'success') setChatHistory(histData.sessions); })
+                            .catch(() => {});
+                    }
+                }).catch(() => {});
+
+                return updated;
+            });
+
+            // 6. Update visual background theme dynamically based on emotion class & recommended accent colors
             const newTheme = getThemeForEmotion(data.emotion, data.theme);
             setTheme(newTheme);
 
@@ -247,7 +305,14 @@ export default function Chat() {
             className="flex h-screen w-full overflow-hidden font-['Inter'] relative selection:bg-white/20 selection:text-white text-white"
         >
             {/* Premium Moon Horizon Background */}
-            <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none bg-black">
+            <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none bg-[#050e12]">
+                {/* Full Bleed Background Image (Zen Sanctuary) */}
+                <img 
+                    src="https://images.unsplash.com/photo-1518241353330-0f7941c2d9b5?q=80&w=2000&auto=format&fit=crop" 
+                    alt="Zen Sanctuary"
+                    className="absolute inset-0 w-full h-full object-cover opacity-20 mix-blend-luminosity"
+                />
+                
                 {/* The Ruixen Moon Image */}
                 <div
                     className="absolute inset-0 w-full h-full bg-no-repeat opacity-80"
@@ -264,7 +329,7 @@ export default function Chat() {
                     className="absolute inset-0 mix-blend-color opacity-100"
                 />
                 {/* Vignette & Depth Shadow */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/80" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#050e12] via-transparent to-[#050e12]/80" />
             </div>
 
             {/* MINIMAL SIDEBAR */}
@@ -279,7 +344,7 @@ export default function Chat() {
                     {/* Brand */}
                     <div className="flex items-center gap-4 px-2 cursor-pointer" onClick={startNewSession}>
                         <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(255,255,255,0.05)]">
-                            <div className="w-2.5 h-2.5 rounded-full bg-white blur-[1px]"></div>
+                            <img src={logo} alt="Soulify" className="w-5 h-5 object-contain" />
                         </div>
                         <AnimatePresence>
                             {sidebarHovered && (
@@ -327,18 +392,27 @@ export default function Chat() {
                             )}
                         </AnimatePresence>
                         
-                        {[
-                            { icon: <MessageSquare size={16} />, label: "Evening Reflection" },
-                            { icon: <MessageSquare size={16} />, label: "Morning Anxiety" }
-                        ].map((item, i) => (
-                            <div key={i} className="flex items-center gap-4 px-2 py-2 hover:bg-white/[0.04] rounded-xl transition-colors cursor-pointer group">
+                        {historyLoading && sidebarHovered && (
+                            <div className="px-4 py-2 text-[11px] text-white/30 animate-pulse">Loading...</div>
+                        )}
+
+                        {!historyLoading && chatHistory.length === 0 && sidebarHovered && (
+                            <div className="px-4 py-2 text-[11px] text-white/20 italic">No sessions yet</div>
+                        )}
+
+                        {chatHistory.map((session) => (
+                            <div
+                                key={session.session_id}
+                                onClick={() => loadSession(session.session_id)}
+                                className="flex items-center gap-4 px-2 py-2 hover:bg-white/[0.04] rounded-xl transition-colors cursor-pointer group"
+                            >
                                 <div className="w-8 h-8 flex items-center justify-center shrink-0 text-white/30 group-hover:text-white/70 transition-colors">
-                                    {item.icon}
+                                    <MessageSquare size={16} />
                                 </div>
                                 <AnimatePresence>
                                     {sidebarHovered && (
-                                        <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[13px] text-white/50 group-hover:text-white/90 whitespace-nowrap overflow-hidden text-ellipsis">
-                                            {item.label}
+                                        <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[13px] text-white/50 group-hover:text-white/90 whitespace-nowrap overflow-hidden text-ellipsis max-w-[160px]">
+                                            {session.title || 'Session'}
                                         </motion.span>
                                     )}
                                 </AnimatePresence>
@@ -397,7 +471,7 @@ export default function Chat() {
                             <Home size={18} className="text-white/70" />
                         </Link>
                         <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center">
-                            <div className="w-1.5 h-1.5 rounded-full bg-white blur-[0.5px]"></div>
+                            <img src={logo} alt="Soulify" className="w-4 h-4 object-contain opacity-80" />
                         </div>
                         <span className="font-bold tracking-tight">Souli</span>
                     </div>
@@ -425,7 +499,7 @@ export default function Chat() {
                                         className="absolute inset-0 rounded-full blur-3xl"
                                         style={{ backgroundColor: theme.laser }}
                                     />
-                                    <div className="w-4 h-4 rounded-full bg-white shadow-[0_0_30px_rgba(255,255,255,0.8)] z-10" />
+                                    <img src={logo} alt="Soulify" className="w-16 h-16 object-contain z-10 filter drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]" />
                                 </div>
 
                                 <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-white/90 mb-4">
@@ -458,7 +532,7 @@ export default function Chat() {
                                 >
                                     {msg.sender === "ai" && (
                                         <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0 mr-4 mt-1">
-                                            <div className="w-2 h-2 rounded-full bg-white blur-[0.5px]"></div>
+                                            <img src={logo} alt="Soulify" className="w-5 h-5 object-contain opacity-90" />
                                         </div>
                                     )}
                                     <div className={cn(
@@ -476,7 +550,7 @@ export default function Chat() {
                         {isTyping && (
                             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
                                 <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0 mr-4 mt-1">
-                                    <div className="w-2 h-2 rounded-full bg-white blur-[0.5px]"></div>
+                                    <img src={logo} alt="Soulify" className="w-5 h-5 object-contain opacity-90" />
                                 </div>
                                 <div className="py-4 flex gap-1.5 items-center">
                                     <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1.4, delay: 0 }} className="w-1.5 h-1.5 bg-white/50 rounded-full" />

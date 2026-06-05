@@ -1,5 +1,5 @@
 .splash-container {
-    background: radial-gradient(circle at center, #38768B 0%, #2F5D6E 100%);
+    background: radial-gradient(circle at center, #F7F9FA 0%, #dce8ec 55%, #2A5565 100%);
     height: 100vh;
     width: 100vw;
     display: flex;
@@ -8,7 +8,7 @@
     justify-content: center;
     overflow: hidden;
     position: relative;
-    color: white;
+    color: #1a2e36;
 }
 
 .splash-aura {

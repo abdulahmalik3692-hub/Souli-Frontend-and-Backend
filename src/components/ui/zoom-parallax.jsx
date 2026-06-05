@@ -37,7 +37,7 @@ export function ZoomParallax({ images = [], children }) {
 	};
 
 	return (
-		<div ref={container} className="relative h-[200vh] bg-[#050e12]">
+		<div ref={container} className="relative h-[200vh] bg-[#F7F9FA]">
 			<div className="sticky top-0 left-0 h-screen w-full overflow-hidden">
 
 				{/* ── base / full-bleed image (index 0) ── */}
