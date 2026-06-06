@@ -3,11 +3,16 @@ import { Link } from 'react-router-dom';
 import { motion, useScroll, useTransform, useMotionValue, useSpring } from 'framer-motion';
 import { Heart, Brain, Shield, Sparkles, Users, Activity, Lock, Cpu, ArrowRight } from 'lucide-react';
 
+import abdullahImg from '../assets/team/abdullah.jpg';
+import laibaImg from '../assets/team/laiba.jpg';
+import arshiyaImg from '../assets/team/arshiya.jpg';
+import wardahImg from '../assets/team/wardah.jpg';
+
 const team = [
-  { name: 'Aria Chen', role: 'CEO & Co-Founder', avatarImg: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=400&auto=format&fit=crop', color: '#38768B', bio: 'Neuroscience + AI background. Passionate about emotional accessibility.' },
-  { name: 'Marcus Webb', role: 'CTO & Co-Founder', avatarImg: 'https://images.unsplash.com/photo-1556157382-97eda2d62296?q=80&w=400&auto=format&fit=crop', color: '#7B52CC', bio: 'Built ML systems at scale. Believes tech should heal, not harm.' },
-  { name: 'Leila Raza', role: 'Head of Wellness', avatarImg: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?q=80&w=400&auto=format&fit=crop', color: '#EC4899', bio: 'Licensed therapist turned product thinker. 10 years in mental health.' },
-  { name: 'James Osei', role: 'Lead AI Engineer', avatarImg: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=400&auto=format&fit=crop', color: '#10B981', bio: 'Specializes in NLP and emotion recognition models at 28-label depth.' },
+  { name: 'Abdullah Malik', role: 'Full Stack AI Dev', avatarImg: abdullahImg, color: '#38768B', bio: 'Architected the core application and spearheaded the advanced AI intelligence engine.' },
+  { name: 'Laiba Jamil', role: 'Full Stack AI Dev', avatarImg: laibaImg, color: '#F59E0B', bio: 'Driving backend logic and integrating powerful LLM capabilities into the platform.' },
+  { name: 'Arshiya Ateeq', role: 'Full Stack AI Dev', avatarImg: arshiyaImg, color: '#7B52CC', bio: 'Ensuring clear, accessible, and structured documentation and design for everyone.' },
+  { name: 'Wardah Awais', role: 'Full Stack AI Dev', avatarImg: wardahImg, color: '#EC4899', bio: 'Focused on rigorous testing and crafting the core AI conversational experience.' },
 ];
 
 function Interactive3DHero() {
@@ -154,17 +159,17 @@ export default function About() {
           <div className="flex-1 space-y-6">
             <span className="text-[#2F5D6E] uppercase tracking-[3px] text-xs font-semibold">The Origin</span>
             <h2 className="font-['Playfair_Display'] text-[38px] md:text-[48px] text-[#2F5D6E] leading-tight mb-6">
-              Born From Personal Pain
+              Driven By a Shared Vision
             </h2>
             <div className="w-16 h-1 bg-[#38768B] mb-8" />
             <p className="text-gray-600 text-lg leading-relaxed">
-              In 2022, our co-founders Aria and Marcus experienced a shared frustration: therapy was expensive, inaccessible, and rarely available at 2 AM when anxiety hits hardest.
+              Our journey started with a shared frustration: mental health support was expensive, inaccessible, and rarely available when people needed it the most. We wanted to build a safe, intelligent space for everyone.
             </p>
             <p className="text-[#2F5D6E] font-semibold text-xl italic leading-relaxed py-4 border-l-4 border-[#38768B] pl-6 my-6 bg-white/50 rounded-r-2xl">
               "What if AI could understand not just what you say, but how you feel when you say it?"
             </p>
             <p className="text-gray-600 text-lg leading-relaxed">
-              That question became Soulify. Today, we track 28 distinct emotional states and have guided over 500,000 conversations — each one moving someone closer to calm.
+              That question became Soulify. With Abdullah and Wardah spearheading the advanced AI capabilities, alongside Laiba and Arshiya shaping the platform's infrastructure, we built an engine that tracks 28 distinct emotional states.
             </p>
           </div>
           

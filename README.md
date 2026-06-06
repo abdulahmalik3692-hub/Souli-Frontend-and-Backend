@@ -1,11 +1,12 @@
 <div align="center">
-  <h1>🌟 Souli — Frontend & Backend</h1>
-  <p>A full-stack AI-powered application built with React + Vite and Python (Flask/FastAPI), leveraging the Groq API for ultra-fast LLM inference.</p>
+  <h1>🌟 Souli (Soulify) — AI-Powered Mood & Mindfulness App</h1>
+  <p>A full-stack AI-powered application built with React + Vite, Tailwind CSS, Framer Motion, and Node.js (Express), leveraging the Groq API for fast LLM inference and MongoDB for data persistence.</p>
 
   <img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React" />
   <img src="https://img.shields.io/badge/Vite-B73BFE?style=for-the-badge&logo=vite&logoColor=FFD62E" alt="Vite" />
-  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
-  <img src="https://img.shields.io/badge/Flask-000000?style=for-the-badge&logo=flask&logoColor=white" alt="Flask" />
+  <img src="https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=node.js&logoColor=white" alt="Node.js" />
+  <img src="https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white" alt="Express" />
+  <img src="https://img.shields.io/badge/MongoDB-4EA94B?style=for-the-badge&logo=mongodb&logoColor=white" alt="MongoDB" />
   <img src="https://img.shields.io/badge/Groq-000000?style=for-the-badge&logo=ai&logoColor=white" alt="Groq" />
 </div>
 
@@ -20,57 +21,71 @@
 - [Environment Configuration](#-environment-configuration)
 - [Getting Started](#-getting-started)
 - [Deployment](#-deployment)
-- [Contributing](#-contributing)
-- [License](#-license)
 
 ---
 
 ## 🎯 Overview
-**Souli** is designed as a modern, scalable full-stack application that bridges a responsive React frontend with a Python-powered backend. The architecture follows a clean separation of concerns:
-- **Frontend**: Handles UI/UX and state management.
-- **Backend**: Manages business logic, AI model orchestration via Groq, and data processing.
+**Souli (Soulify)** is designed as a modern, scalable full-stack application that bridges a responsive, heavily animated React frontend with a Node.js-powered backend. 
 
 ### ✨ Key Features
 - **AI-Powered Conversations** — Integrates Groq’s ultra-fast LLM inference API.
-- **Modern React UI** — Built with Vite for lightning-fast development and production builds.
-- **RESTful API** — Clean, predictable API endpoints for frontend-backend communication.
-- **Environment-Driven Configuration** — Secure secret management via `.env` files.
-- **Scalable Structure** — Monorepo layout supporting independent frontend and backend development.
+- **Dynamic Animations** — Powered by Framer Motion and GSAP for a premium feel.
+- **Mood Tracking & Insights** — Visualize emotional trends over time with Recharts.
+- **Modern React UI** — Built with Vite, Tailwind CSS, and Radix UI primitives.
+- **Authentication** — Secure email-based verification system.
 
 ---
 
 ## 🏗 Architecture
 
+### System Architecture
 ```mermaid
 graph TD
-    A[Client Browser] -->|HTTP Requests JSON| B[Python Backend Server]
-    B -->|Responses| A
+    Client[Client Browser / Frontend] -->|HTTP REST & JSON| API[Node.js / Express Backend]
     
     subgraph Frontend
-    A1[React + Vite]
-    A2[Component-based UI JSX]
-    A3[React Hooks]
-    A4[Fetch/Axios API]
-    A1 --- A2
-    A1 --- A3
-    A1 --- A4
+        React[React + Vite]
+        UI[Tailwind CSS + Radix]
+        Anim[Framer Motion + GSAP]
+        Charts[Recharts]
+        
+        React --- UI
+        React --- Anim
+        React --- Charts
     end
     
     subgraph Backend
-    B1[Flask / FastAPI]
-    B2[Groq Integration]
-    B3[Request Validation]
-    B4[CORS-enabled]
-    B1 --- B2
-    B1 --- B3
-    B1 --- B4
+        API --> Auth[Auth & Verification]
+        API --> Reports[Mood Reports]
+        API --> Chat[Chat Controller]
+        
+        Auth --> DB[(MongoDB)]
+        Reports --> DB
+        Chat --> DB
     end
     
-    B -->|LLM Inference| C[External Services: Groq API]
+    Chat -->|LLM Inference| Groq[Groq API / Llama-3.3]
+    Reports -->|Report Synthesis| Groq
+```
+
+### Frontend Architecture
+```mermaid
+graph TD
+    App[App.jsx Route Manager] --> Pages
+    Pages -->|Home/About/Contact| Layout[Main Layout + Navbar + Footer]
+    Pages -->|Chat/Report| ProtectedRoute
+    
+    ProtectedRoute --> ChatView[Chat.jsx]
+    ProtectedRoute --> ReportView[ReportGeneration.jsx]
+    
+    ChatView --> PromptBox[AI Prompt Box]
+    ChatView --> Mascot[Mascot Widget]
+    
+    ReportView --> ChartLayer[Recharts Visualization]
 ```
 
 ### 🔄 Communication Flow
-`User Input` ➡️ `React Component` ➡️ `State Update` ➡️ `API Call (POST /api/chat)` ➡️ `Backend` ➡️ `Groq API (LLM)`
+`User Input` ➡️ `React Component` ➡️ `API Call (POST /api/chat)` ➡️ `Express Backend` ➡️ `Groq API (LLM)` ➡️ `Save to MongoDB` ➡️ `Update UI`
 
 ---
 
@@ -78,37 +93,26 @@ graph TD
 
 ```text
 Souli-Frontend-and-Backend/
-├── frontend/                    # React + Vite Application
-│   ├── src/
-│   │   ├── components/          # Reusable UI components
-│   │   ├── pages/               # Route-level page components
-│   │   ├── hooks/               # Custom React hooks
-│   │   ├── services/            # API service functions
-│   │   ├── context/             # React Context providers
-│   │   ├── assets/              # Static assets (images, fonts)
-│   │   ├── App.jsx              # Root component & routing
-│   │   ├── main.jsx             # Entry point (ReactDOM.render)
-│   │   └── index.css            # Global styles
-│   ├── public/                  # Public static files
-│   ├── index.html               # HTML template
-│   ├── vite.config.js           # Vite configuration
-│   ├── package.json             # Frontend dependencies
-│   └── .eslintrc.cjs            # ESLint configuration
-│
-├── backend/                     # Python API Server
-│   ├── app/
-│   │   ├── routes/              # API route definitions
-│   │   ├── services/            # Business logic & Groq integration
-│   │   ├── models/              # Data models & schemas
-│   │   ├── utils/               # Utility functions
-│   │   └── __init__.py          # App factory
-│   ├── tests/                   # Unit & integration tests
-│   ├── app.py                   # Application entry point
-│   ├── requirements.txt         # Python dependencies
-│   └── .env                     # Environment variables (NOT in Git)
-│
-├── .gitignore                   # Git ignore rules
-└── README.md                    # This file
+├── src/                         # Frontend React Source
+│   ├── assets/                  # Static assets (images, videos)
+│   ├── components/              # Reusable UI components (Mascot, UI elements)
+│   ├── pages/                   # Route-level components (Home, Chat, Report, etc.)
+│   ├── theme/                   # Theme configuration and utilities
+│   ├── styles/                  # Custom CSS stylesheets
+│   ├── utils/                   # Frontend utilities and auth helpers
+│   ├── App.jsx                  # Root component & routing
+│   └── main.jsx                 # Entry point
+├── backend/                     # Node.js Express Backend
+│   ├── db.js                    # MongoDB connection and schema operations
+│   ├── server.js                # Express app, routes, and Groq integration
+│   ├── constants.js             # Shared backend constants
+│   ├── package.json             # Backend dependencies
+│   └── .env                     # Backend environment variables
+├── public/                      # Public static files
+├── index.html                   # HTML template
+├── tailwind.config.js           # Tailwind CSS configuration
+├── vite.config.js               # Vite configuration
+└── package.json                 # Frontend dependencies
 ```
 
 ---
@@ -116,30 +120,21 @@ Souli-Frontend-and-Backend/
 ## 💻 Frontend
 
 ### Tech Stack
-| Technology | Purpose | Version |
-|---|---|---|
-| **React** | UI library for building component-based interfaces | `^18.x` |
-| **Vite** | Next-generation frontend build tool | `^5.x` |
-| **JavaScript (ES6+)** | Primary language with modern syntax | `ES2022` |
-| **CSS3** | Styling with modern features (Flexbox, Grid) | — |
-| **ESLint** | Static code analysis for code quality | `^8.x` |
-
-### Why Vite?
-- **Instant Server Start** — Starts in milliseconds (native ESM).
-- **Lightning-Fast HMR** — Hot Module Replacement updates instantly.
-- **Optimized Builds** — Uses Rollup for highly optimized production bundles.
+| Technology | Purpose |
+|---|---|
+| **React (v19)** | UI library for building component-based interfaces |
+| **Vite** | Next-generation frontend build tool |
+| **Tailwind CSS** | Utility-first CSS framework for rapid styling |
+| **Framer Motion / GSAP** | High-performance animations and transitions |
+| **Recharts** | Composable charting library for mood tracking |
+| **React Router** | Client-side routing |
+| **Three.js** | 3D graphics and interactions |
 
 ### Running the Frontend
-#### Development
 ```bash
-cd frontend
-npm install        # Install dependencies
+# In the root directory
+npm install        # Install frontend dependencies
 npm run dev        # Start dev server (http://localhost:5173)
-```
-
-#### Production Build
-```bash
-npm run build      # Creates optimized `dist/` folder
 ```
 
 ---
@@ -147,55 +142,19 @@ npm run build      # Creates optimized `dist/` folder
 ## ⚙️ Backend
 
 ### Tech Stack
-| Technology | Purpose | Version |
-|---|---|---|
-| **Python** | Primary backend language | `3.10+` |
-| **Flask / FastAPI** | Web framework for API endpoints | Latest |
-| **Groq SDK** | Integration with Groq’s LLM inference API | Latest |
-| **python-dotenv** | Environment variable management | Latest |
-| **Flask-CORS** | Cross-Origin Resource Sharing support | Latest |
+| Technology | Purpose |
+|---|---|
+| **Node.js + Express** | Web framework for REST API |
+| **MongoDB** | NoSQL database for users, sessions, and mood logs |
+| **Groq SDK** | Integration with Groq’s LLM inference API |
+| **dotenv** | Environment variable management |
+| **CORS** | Cross-Origin Resource Sharing support |
 
 ### Running the Backend
-#### Development
 ```bash
 cd backend
-python -m venv venv              # Create virtual environment
-
-# Activate virtual environment
-source venv/bin/activate         # macOS/Linux
-# venv\Scripts\activate          # Windows
-
-pip install -r requirements.txt  # Install dependencies
-python app.py                    # Start server (http://localhost:5000)
-```
-
-#### Production Build
-```bash
-# Flask
-pip install gunicorn
-gunicorn -w 4 -b 0.0.0.0:5000 app:app
-
-# FastAPI
-pip install uvicorn
-uvicorn app:app --host 0.0.0.0 --port 5000 --workers 4
-```
-
-### API Design
-**Chat Endpoint (POST `/api/chat`)**
-```json
-// Request Body
-{
-  "message": "Explain quantum computing in simple terms",
-  "model": "llama3-8b-8192" 
-}
-
-// Response Body
-{
-  "response": "Quantum computing is a type of computing that uses...",
-  "model": "llama3-8b-8192",
-  "tokens_used": 150,
-  "timestamp": "2024-01-15T10:30:00Z"
-}
+npm install        # Install backend dependencies
+npm run dev        # Start server with Nodemon (http://localhost:5000)
 ```
 
 ---
@@ -207,9 +166,8 @@ Create a `.env` file in the `backend/` directory:
 ```env
 # backend/.env
 GROQ_API_KEY=your_actual_groq_api_key_here
-FLASK_ENV=development
-FLASK_PORT=5000
-CORS_ORIGIN=http://localhost:5173
+PORT=5000
+MONGODB_URI=your_mongodb_atlas_connection_string
 ```
 > ⚠️ **IMPORTANT**: Never commit `.env` files to Git! Ensure it is added to your `.gitignore`.
 
@@ -218,9 +176,8 @@ CORS_ORIGIN=http://localhost:5173
 ## 🚀 Getting Started
 
 ### Prerequisites
-- **Node.js** 18+ (for frontend)
-- **Python** 3.10+ (for backend)
-- **Git**
+- **Node.js** 18+
+- **MongoDB Atlas** Account & Connection String
 - **Groq API Key** ([Get one here](https://console.groq.com/keys))
 
 ### Installation
@@ -230,17 +187,20 @@ git clone https://github.com/abdulahmalik3692-hub/Souli-Frontend-and-Backend.git
 cd Souli-Frontend-and-Backend
 
 # 2. Setup Frontend
-cd frontend
 npm install
 
 # 3. Setup Backend
-cd ../backend
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+cd backend
+npm install
 
-# 4. Configure Environment (Edit .env with your Groq API key)
-cp .env.example .env
+# 4. Configure Environment
+# Create backend/.env with GROQ_API_KEY and MONGODB_URI
+
+# 5. Start Application
+# Terminal 1: Frontend
+npm run dev
+# Terminal 2: Backend
+cd backend && npm run dev
 ```
 
 ---
@@ -248,37 +208,11 @@ cp .env.example .env
 ## 🌍 Deployment
 
 ### Frontend (Vercel / Netlify)
-1. Build the production bundle: `npm run build` inside `frontend/`
-2. Deploy the `dist/` folder to Vercel, Netlify, or similar hosting.
-3. Set environment variable: `VITE_API_URL=https://your-backend-url.com`
+1. Build the production bundle: `npm run build`
+2. Deploy the `dist/` folder.
+3. Update API endpoints to point to your deployed backend URL.
 
 ### Backend (Render / Railway / Heroku)
-1. Push code to GitHub.
-2. Connect your repository to your chosen platform.
-3. Add environment variables in the platform dashboard.
-4. Set start command: `gunicorn app:app` (Flask) or `uvicorn app:app` (FastAPI).
-
----
-
-## 🤝 Contributing
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Commit your changes: `git commit -m "Add your feature"`
-4. Push to the branch: `git push origin feature/your-feature`
-5. Open a Pull Request
-
----
-
-## 📜 License
-This project is licensed under the MIT License.
-
-### 🙌 Acknowledgments
-- **Groq** — For providing ultra-fast LLM inference
-- **React Team** — For the powerful UI library
-- **Vite** — For revolutionizing frontend tooling
-- **Flask/FastAPI Community** — For excellent Python web frameworks
-
----
-<div align="center">
-  <b>Built with ❤️ by Abdulah Malik</b>
-</div>
+1. Set the root directory to `backend/` (or deploy only the backend folder).
+2. Add environment variables (`GROQ_API_KEY`, `MONGODB_URI`, `PORT`) in the dashboard.
+3. Set start command: `npm start`.

@@ -62,9 +62,11 @@ export default function ReportPage() {
   useEffect(() => {
     let active = true;
 
-    async function fetchReport() {
-      setLoading(true);
-      setError(null);
+    async function fetchReport(isInitial) {
+      if (isInitial) {
+        setLoading(true);
+        setError(null);
+      }
       try {
         const userId = getUserId();
         const response = await fetch(`http://127.0.0.1:5000/report?user_id=${encodeURIComponent(userId)}&duration=${duration}`);
@@ -78,19 +80,26 @@ export default function ReportPage() {
         }
       } catch (err) {
         console.error("Error fetching mood insights report:", err);
-        if (active) {
+        if (active && isInitial) {
           setError("Failed to fetch report data from the backend. Make sure the Node.js server is running on port 5000.");
         }
       } finally {
-        if (active) {
+        if (active && isInitial) {
           setLoading(false);
         }
       }
     }
 
-    fetchReport();
+    fetchReport(true);
+    
+    // Live Real-Time Detection Sync
+    const interval = setInterval(() => {
+      fetchReport(false);
+    }, 3000);
+
     return () => {
       active = false;
+      clearInterval(interval);
     };
   }, [duration]);
 
@@ -294,7 +303,7 @@ export default function ReportPage() {
       pdf.text("Suggestions for Improvement", margin, y);
       y += 10;
 
-      const suggestions = getSuggestions(reportData);
+      const suggestions = (reportData.suggestions && reportData.suggestions.length > 0) ? reportData.suggestions : getSuggestions(reportData);
       suggestions.forEach((tip, i) => {
         if (y > pageHeight - 30) {
           pdf.addPage();
@@ -561,13 +570,13 @@ export default function ReportPage() {
           <motion.div key={`chart-${duration}`} className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 relative z-10">
             
             {/* Chart */}
-            <motion.div {...fadeUp(0.4)} className="lg:col-span-2 bg-white/[0.03] border border-white/10 rounded-[24px] p-6 backdrop-blur-2xl shadow-2xl hover:border-white/20 hover:shadow-[0_20px_50px_rgba(0,0,0,0.4)] transition-all duration-500 relative overflow-hidden">
+            <motion.div {...fadeUp(0.4)} className="lg:col-span-2 flex flex-col bg-white/[0.03] border border-white/10 rounded-[24px] p-6 backdrop-blur-2xl shadow-2xl hover:border-white/20 hover:shadow-[0_20px_50px_rgba(0,0,0,0.4)] transition-all duration-500 relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-tr from-[#7EC8C8]/5 to-transparent pointer-events-none" />
               <h3 className="relative z-10 text-lg font-bold text-white mb-4 flex items-center gap-3">
                 Mood Trajectory 
                 <span className="px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] uppercase tracking-widest text-[#7EC8C8]">Analytics</span>
               </h3>
-              <div ref={chartRef} className="relative z-10 h-[260px] w-full" style={{ backgroundColor: "transparent" }}>
+              <div ref={chartRef} className="relative z-10 flex-1 w-full min-h-[260px]" style={{ backgroundColor: "transparent" }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={current.chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
@@ -592,7 +601,7 @@ export default function ReportPage() {
                       strokeWidth={3}
                       fillOpacity={1} 
                       fill="url(#colorMoodPremium)"
-                      connectNulls={false}
+                      connectNulls={true}
                       dot={{ r: 3, fill: "#183440", stroke: "#FFFFFF", strokeWidth: 2 }}
                       activeDot={{ r: 6, fill: "#FFFFFF", stroke: "#7EC8C8", strokeWidth: 2, shadow: "0 0 10px #FFFFFF" }}
                     />

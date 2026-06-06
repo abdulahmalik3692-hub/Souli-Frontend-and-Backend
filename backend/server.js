@@ -16,10 +16,13 @@ import {
   migrateChatSessions
 } from './db.js';
 import { EMOTION_MOOD_SCORES } from './constants.js';
+import { sendVerificationEmail } from './utils/mailer.js';
 
 dotenv.config();
 
 const app = express();
+
+
 const PORT = process.env.PORT || 5000;
 
 app.use(cors({
@@ -110,12 +113,8 @@ app.post('/auth/signup', async (req, res) => {
       });
     }
 
-    // SMTP Fallback output to stdout
-    console.log("\n" + "=".repeat(80));
-    console.log(`📧 [DEVELOPMENT MAIL FALLBACK]`);
-    console.log(`To: ${email}`);
-    console.log(`Verification Code: ${code}`);
-    console.log("=".repeat(80) + "\n");
+    // Send real verification email
+    await sendVerificationEmail(email, code);
 
     res.json({
       status: 'success',
@@ -188,11 +187,8 @@ app.post('/auth/login', async (req, res) => {
         code
       );
 
-      console.log("\n" + "=".repeat(80));
-      console.log(`📧 [DEVELOPMENT MAIL FALLBACK - UNVERIFIED LOGIN]`);
-      console.log(`To: ${email}`);
-      console.log(`Verification Code: ${code}`);
-      console.log("=".repeat(80) + "\n");
+      // Send real verification email
+      await sendVerificationEmail(email, code);
 
       return res.json({
         status: 'unverified',
@@ -240,6 +236,27 @@ app.post('/chat/save', async (req, res) => {
     res.json({ status: 'success' });
   } catch (err) {
     console.error("Error in /chat/save:", err);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+});
+
+app.post('/api/log-mood', async (req, res) => {
+  const { user_id, emotion, message_preview } = req.body;
+  if (!user_id || !emotion) {
+    return res.status(400).json({ status: 'error', message: 'Missing user_id or emotion' });
+  }
+  try {
+    if (moodLogs) {
+      await moodLogs.insertOne({
+        user_id,
+        timestamp: new Date(),
+        emotion,
+        message_preview: message_preview || ""
+      });
+    }
+    res.json({ status: 'success' });
+  } catch (err) {
+    console.error("Error saving mood log:", err);
     res.status(500).json({ status: 'error', message: 'Internal server error' });
   }
 });
@@ -374,6 +391,7 @@ app.get('/report', async (req, res) => {
 
     // 5. Query Groq for Dynamic AI Summary Analysis
     let insightsText = "";
+    let suggestionsArray = [];
     try {
       const recentLogsSummary = logs.slice(-12).map(l => {
         const dateStr = l.timestamp instanceof Date ? l.timestamp.toISOString().split('T')[0] : new Date(l.timestamp).toISOString().split('T')[0];
@@ -386,21 +404,39 @@ app.get('/report', async (req, res) => {
         const analysisPrompt = `
 We are generating a psychological & spiritual mood analysis report for the user.
 Timeframe: ${getDurationLabel(activeDuration)}.
-User average mood score: ${avgMood}/10 (where 10 is absolute bliss and 1 is grief/sorrow).
+User average mood score: ${avgMood}/10.
 Dominant emotional state: ${dominantLabel}.
 Timeline logs:
 ${recentLogsSummary}
 
-Write a brief, emotionally intelligent, and comforting behavioral insight report. Focus on positive trends, mindfulness observations, and spiritual progress.
-Keep it strictly under 3 sentences, extremely warm and friendly. Do NOT mention clinical diagnoses, medications, or therapeutic jargon. Speak in the first person plural as a caring presence ("We observe...", "Your practice...").
+You must respond with a raw JSON object EXACTLY matching this structure (no markdown, no backticks, just raw JSON):
+{
+  "insights": "Write a brief, comforting behavioral insight report focusing on positive trends and mindfulness. Keep it under 3 sentences, extremely warm. Do NOT use line breaks inside the string. Speak in the first person plural as a caring presence.",
+  "suggestions": [
+    "First actionable and personalized suggestion based on the user's recent emotions.",
+    "Second actionable suggestion.",
+    "Third actionable suggestion."
+  ]
+}
 `;
         const response = await groq.chat.completions.create({
           model: 'llama-3.3-70b-versatile',
           messages: [{ role: 'user', content: analysisPrompt }],
           temperature: 0.8,
-          max_tokens: 150,
+          max_tokens: 500,
         });
-        insightsText = response.choices[0].message.content.trim();
+        
+        let rawContent = response.choices[0].message.content.trim();
+        // Remove markdown formatting if Llama includes it
+        if (rawContent.startsWith('\`\`\`json')) {
+            rawContent = rawContent.replace(/^\`\`\`json/m, '').replace(/\`\`\`$/m, '').trim();
+        } else if (rawContent.startsWith('\`\`\`')) {
+            rawContent = rawContent.replace(/^\`\`\`/m, '').replace(/\`\`\`$/m, '').trim();
+        }
+        
+        const parsed = JSON.parse(rawContent);
+        if (parsed.insights) insightsText = parsed.insights.replace(/\n+/g, ' ');
+        if (parsed.suggestions && Array.isArray(parsed.suggestions)) suggestionsArray = parsed.suggestions;
       }
     } catch (e) {
       console.error("Failed to query Groq for dynamic insights:", e);
@@ -417,6 +453,7 @@ Keep it strictly under 3 sentences, extremely warm and friendly. Do NOT mention 
       calmIncrease,
       dominant: dominantLabel,
       insights: insightsText,
+      suggestions: suggestionsArray,
       chartData
     });
 
@@ -563,6 +600,17 @@ function compileChartPoints(logs, duration) {
     }
     result.push({ day: labels[i], mood: moodVal });
   }
+
+  // Forward-fill nulls so Recharts always draws a structured, continuous line
+  let lastVal = 6.0;
+  for (let i = 0; i < result.length; i++) {
+    if (result[i].mood !== null) {
+      lastVal = result[i].mood;
+    } else {
+      result[i].mood = lastVal;
+    }
+  }
+
   return result;
 }
 

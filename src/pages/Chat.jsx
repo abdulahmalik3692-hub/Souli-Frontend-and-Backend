@@ -274,6 +274,19 @@ export default function Chat() {
                     }
                 }).catch(() => {});
 
+                // Log the detected emotion for the live graph report
+                if (data.emotion) {
+                    fetch('http://127.0.0.1:5000/api/log-mood', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            user_id: userId,
+                            emotion: data.emotion,
+                            message_preview: messageText.substring(0, 100)
+                        })
+                    }).catch(() => {});
+                }
+
                 return updated;
             });
 
