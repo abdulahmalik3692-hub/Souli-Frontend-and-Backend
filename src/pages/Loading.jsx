@@ -125,6 +125,8 @@ export default function Loading() {
                         <img
                             src={logo}
                             alt="Soulify Logo"
+                            width="80"
+                            height="80"
                             className="w-full h-full object-contain drop-shadow-lg"
                         />
                     </div>

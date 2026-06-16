@@ -31,6 +31,12 @@ export async function connectDb() {
     moodLogs = db.collection('mood_logs');
     users = db.collection('users');
     chatSessions = db.collection('chat_sessions');
+
+    // Performance optimization indexes
+    await users.createIndex({ email: 1 }, { unique: true });
+    await moodLogs.createIndex({ user_id: 1, timestamp: -1 });
+    await chatSessions.createIndex({ user_id: 1, updated_at: -1 });
+    await chatSessions.createIndex({ user_id: 1, session_id: 1 });
     
     console.log(`Connected to MongoDB database: ${DB_NAME}`);
   } catch (error) {

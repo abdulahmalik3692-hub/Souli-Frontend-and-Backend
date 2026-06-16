@@ -62,9 +62,10 @@ export default function MascotWidget() {
         <div className="bubble-container bg-white text-[#1E2E35] px-5 py-3 rounded-2xl rounded-br-none shadow-xl border border-[#2F5D6E]/10 max-w-xs relative mb-12 mr-1">
           <button
             onClick={() => setShowMascotBubble(false)}
-            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-[#F2F5F7] hover:bg-[#2F5D6E] hover:text-white rounded-full flex items-center justify-center text-gray-400 text-[10px] shadow transition-colors"
+            aria-label="Close welcome message"
+            className="absolute -top-2 -right-2 w-7 h-7 min-w-[44px] min-h-[44px] bg-[#F2F5F7] hover:bg-[#2F5D6E] hover:text-white rounded-full flex items-center justify-center text-gray-400 text-[10px] shadow transition-colors p-2"
           >
-            <X size={10} />
+            <X size={12} />
           </button>
           <p className="text-sm font-semibold leading-relaxed">
             Welcome to Soulify!
@@ -87,6 +88,9 @@ export default function MascotWidget() {
           <img
             src={mascotImg}
             alt="Souli Mascot"
+            loading="lazy"
+            width="112"
+            height="112"
             className="w-full h-full object-cover scale-110 translate-y-1"
           />
         </Link>

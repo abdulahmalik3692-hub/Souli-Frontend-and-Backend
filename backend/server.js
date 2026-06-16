@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import Groq from 'groq-sdk';
+import compression from 'compression';
 import {
   connectDb,
   createOrUpdateUnverifiedUser,
@@ -21,6 +22,8 @@ import { sendVerificationEmail } from './utils/mailer.js';
 dotenv.config();
 
 const app = express();
+
+app.use(compression());
 
 
 const PORT = process.env.PORT || 5000;
@@ -65,6 +68,8 @@ const HUMAN_EMOTION_LABELS = {
   'remorse': 'Remorseful',
   'grief': 'Mournful'
 };
+
+const reportCache = new Map();
 
 // ── Health Check ────────────────────────────────────────────────────
 app.get('/health', (req, res) => {
@@ -398,10 +403,17 @@ app.get('/report', async (req, res) => {
         return `${dateStr}: ${l.emotion} ("${l.message_preview || ''}")`;
       }).join('\n');
 
-      const apiKey = process.env.GROQ_API_KEY || '';
-      if (apiKey) {
-        const groq = new Groq({ apiKey });
-        const analysisPrompt = `
+      const cacheKey = `${user_id}_${activeDuration}_${recentLogsSummary}`;
+      const cached = reportCache.get(cacheKey);
+
+      if (cached) {
+        insightsText = cached.insights;
+        suggestionsArray = cached.suggestions;
+      } else {
+        const apiKey = process.env.GROQ_API_KEY || '';
+        if (apiKey) {
+          const groq = new Groq({ apiKey });
+          const analysisPrompt = `
 We are generating a psychological & spiritual mood analysis report for the user.
 Timeframe: ${getDurationLabel(activeDuration)}.
 User average mood score: ${avgMood}/10.
@@ -419,24 +431,32 @@ You must respond with a raw JSON object EXACTLY matching this structure (no mark
   ]
 }
 `;
-        const response = await groq.chat.completions.create({
-          model: 'llama-3.3-70b-versatile',
-          messages: [{ role: 'user', content: analysisPrompt }],
-          temperature: 0.8,
-          max_tokens: 500,
-        });
-        
-        let rawContent = response.choices[0].message.content.trim();
-        // Remove markdown formatting if Llama includes it
-        if (rawContent.startsWith('\`\`\`json')) {
-            rawContent = rawContent.replace(/^\`\`\`json/m, '').replace(/\`\`\`$/m, '').trim();
-        } else if (rawContent.startsWith('\`\`\`')) {
-            rawContent = rawContent.replace(/^\`\`\`/m, '').replace(/\`\`\`$/m, '').trim();
+          const response = await groq.chat.completions.create({
+            model: 'llama3-8b-8192',
+            messages: [{ role: 'user', content: analysisPrompt }],
+            temperature: 0.8,
+            max_tokens: 500,
+          });
+          
+          let rawContent = response.choices[0].message.content.trim();
+          // Remove markdown formatting if Llama includes it
+          if (rawContent.startsWith('\`\`\`json')) {
+              rawContent = rawContent.replace(/^\`\`\`json/m, '').replace(/\`\`\`$/m, '').trim();
+          } else if (rawContent.startsWith('\`\`\`')) {
+              rawContent = rawContent.replace(/^\`\`\`/m, '').replace(/\`\`\`$/m, '').trim();
+          }
+          
+          const parsed = JSON.parse(rawContent);
+          if (parsed.insights) insightsText = parsed.insights.replace(/\n+/g, ' ');
+          if (parsed.suggestions && Array.isArray(parsed.suggestions)) suggestionsArray = parsed.suggestions;
+
+          if (insightsText) {
+            reportCache.set(cacheKey, {
+              insights: insightsText,
+              suggestions: suggestionsArray
+            });
+          }
         }
-        
-        const parsed = JSON.parse(rawContent);
-        if (parsed.insights) insightsText = parsed.insights.replace(/\n+/g, ' ');
-        if (parsed.suggestions && Array.isArray(parsed.suggestions)) suggestionsArray = parsed.suggestions;
       }
     } catch (e) {
       console.error("Failed to query Groq for dynamic insights:", e);

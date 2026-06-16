@@ -15,10 +15,10 @@ cd /Users/devorbis/Downloads/Souli-frontend/backend
 node server.js &
 NODE_PID=$!
 
-# 3. Start React Frontend (Port 5173)
-echo "Starting React Frontend..."
+# 3. Start React Frontend in Production Mode (Port 5173)
+echo "Building React Frontend..."
 cd /Users/devorbis/Downloads/Souli-frontend
-npm run dev &
+npm run build && npm run preview -- --port 5173 &
 FRONTEND_PID=$!
 
 echo "======================================================"

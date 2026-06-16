@@ -19,7 +19,7 @@ const Navbar = () => {
 
                     {/* Logo */}
                     <div className="navbar-logo">
-                        <img src={logo} alt="Soulify Logo" />
+                        <img src={logo} alt="Soulify Logo" width="35" height="35" />
                         <span>SOULIFY</span>
                     </div>
 

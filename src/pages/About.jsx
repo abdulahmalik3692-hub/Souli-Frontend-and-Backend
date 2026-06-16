@@ -142,8 +142,8 @@ export default function About() {
     <div className="bg-[#0a1c24] min-h-screen text-white font-['Inter'] overflow-x-hidden selection:bg-[#38768B]/30">
       <style>{`
         @keyframes pageFadeIn {
-          from { opacity: 0; transform: translateY(12px); }
-          to { opacity: 1; transform: translateY(0); }
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
       `}</style>
       

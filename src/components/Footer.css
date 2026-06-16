@@ -3,7 +3,7 @@
   background: transparent;
   color: #fff;
   font-family: 'Inter', sans-serif;
-  margin-top: -60px; /* Pulls the footer up to overlap the previous section and eliminate the white gap */
+  margin-top: 0;
   z-index: 10;
 }
 
@@ -125,7 +125,7 @@
 
 .short-footer-bottom p {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.75);
 }
 
 /* ── RESPONSIVE ── */

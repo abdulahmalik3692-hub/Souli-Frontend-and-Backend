@@ -5,15 +5,16 @@ import Footer from './Footer';
 import ButterflyCursor from './ButterflyCursor';
 import MascotWidget from './MascotWidget';
 
-// Lightweight CSS fade for page transitions - no artificial delays
+// Lightweight CSS fade for page transitions - opacity only to avoid CLS
 const pageStyle = {
     animation: 'pageFadeIn 0.35s ease forwards',
+    minHeight: '100vh',
 };
 
 const globalStyle = `
 @keyframes pageFadeIn {
-    from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; }
+    to   { opacity: 1; }
 }
 `;
 
@@ -47,3 +48,4 @@ const Layout = ({ children }) => {
 };
 
 export default Layout;
+

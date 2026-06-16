@@ -75,8 +75,8 @@ const customCss = `
 
 /* Page fade animation */
 @keyframes pageFadeIn {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* How It Works cards slide-up */
@@ -505,6 +505,10 @@ export default function Home() {
         <div
           className="absolute bottom-12 flex flex-col items-center cursor-pointer z-20 transition-all duration-300 hover:scale-105"
           onClick={scrollToNext}
+          role="button"
+          aria-label="Scroll to next section"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') scrollToNext(); }}
         >
           <div className="w-12 h-12 bg-[#38768B]/20 hover:bg-[#38768B]/35 border border-[#38768B]/40 rounded-full flex items-center justify-center backdrop-blur-md shadow-lg mb-2 transition-all duration-300">
             <ChevronDown className="text-[#A7C4BC]" />
@@ -546,6 +550,9 @@ export default function Home() {
                     src={item.image}
                     className="absolute top-0 left-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                     alt={item.name}
+                    loading="lazy"
+                    width="320"
+                    height="320"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-4 transition-all group-hover:from-black/90 z-10">
                     <span className="text-3xl mb-1 transform transition-transform duration-300 group-hover:scale-110 origin-left">{item.emoji}</span>
@@ -573,6 +580,9 @@ export default function Home() {
                     src={item.image}
                     className="absolute top-0 left-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                     alt={item.name}
+                    loading="lazy"
+                    width="320"
+                    height="320"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-4 transition-all group-hover:from-black/90 z-10">
                     <span className="text-3xl mb-1 transform transition-transform duration-300 group-hover:scale-110 origin-left">{item.emoji}</span>
@@ -635,7 +645,7 @@ export default function Home() {
               className="how-card group rounded-3xl p-8 text-white flex flex-col justify-between min-h-[380px] shadow-lg cursor-pointer hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 relative overflow-hidden"
             >
               <div className="absolute inset-0 bg-[#0a1c24]/80 z-0 group-hover:bg-[#0a1c24]/70 transition-colors duration-500" />
-              <img src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?q=80&w=1000&auto=format&fit=crop" className="absolute inset-0 w-full h-full object-cover z-[-1] opacity-60 mix-blend-luminosity group-hover:scale-105 transition-transform duration-1000" alt="Team connection" />
+              <img src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?q=75&w=800&auto=format&fit=crop" className="absolute inset-0 w-full h-full object-cover z-[-1] opacity-60 mix-blend-luminosity group-hover:scale-105 transition-transform duration-1000" alt="Team connection" loading="lazy" width="800" height="534" />
               <div className="absolute top-0 right-0 w-48 h-48 bg-[#7EC8C8]/20 rounded-bl-full blur-3xl z-0" />
               <div className="relative z-10">
                 <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center border border-white/20 mb-6 backdrop-blur-md">
@@ -723,8 +733,11 @@ export default function Home() {
           >
             <div className="absolute inset-0 bg-gradient-to-t from-[#0a1c24] via-transparent to-transparent z-10" />
             <img 
-              src="https://images.unsplash.com/photo-1499933374294-4584851497cc?q=80&w=2000&auto=format&fit=crop" 
+              src="https://images.unsplash.com/photo-1499933374294-4584851497cc?q=75&w=1200&auto=format&fit=crop" 
               alt="Discover inner balance"
+              loading="lazy"
+              width="1200"
+              height="400"
               className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-[2000ms]"
             />
           </motion.div>
@@ -750,7 +763,7 @@ export default function Home() {
                 <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform relative" style={{ background: feature.accentLight }}>
                   <feature.icon style={{ color: feature.accent }} size={24} />
                 </div>
-                <h4 className="font-bold text-white text-lg mb-3">{feature.title}</h4>
+                <h3 className="font-bold text-white text-lg mb-3">{feature.title}</h3>
                 <p className="text-sm text-white/65 leading-relaxed">{feature.desc}</p>
               </div>
             ))}
@@ -790,7 +803,7 @@ export default function Home() {
                 name: 'Sarah J.', 
                 title: 'Marketing Director', 
                 quote: 'Soulify helped me identify work triggers. The breathing routines and daily AI checking logs literally helped me step down my panic attacks.',
-                image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&h=400&q=80',
+                image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&h=200&q=80',
                 before: 'Anxious (8/10)',
                 after: 'Centered (2/10)',
                 improvement: '+65% Stress Relief'
@@ -799,7 +812,7 @@ export default function Home() {
                 name: 'David M.', 
                 title: 'Software Architect', 
                 quote: 'The deep rest protocols are marvelous. Replaying the audio prompts before sleep silences my overactive logical brain completely.',
-                image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&h=400&q=80',
+                image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&h=200&q=80',
                 before: 'Exhausted (9/10)',
                 after: 'Restored (3/10)',
                 improvement: '+80% Rest Quality'
@@ -808,7 +821,7 @@ export default function Home() {
                 name: 'Elena R.', 
                 title: 'Ph.D. Student', 
                 quote: 'Analyzing reports changed my approach to work blocks. I learned to identify somatic tension and take structured breaks. I feel so much more focus.',
-                image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&h=400&q=80',
+                image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&h=200&q=80',
                 before: 'Overwhelmed (7/10)',
                 after: 'Mindful (1/10)',
                 improvement: '+70% Cognitive Focus'
@@ -817,7 +830,7 @@ export default function Home() {
                 name: 'Marcus T.', 
                 title: 'Creative Director', 
                 quote: 'The mood-attuned layouts shifted my workspace energy. I finish projects calmer and more present with my team.',
-                image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=400&h=400&q=80',
+                image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&h=200&q=80',
                 before: 'Stressed (8/10)',
                 after: 'Balanced (2/10)',
                 improvement: '+60% Calm Focus'
@@ -826,7 +839,7 @@ export default function Home() {
                 name: 'Priya K.', 
                 title: 'Healthcare Nurse', 
                 quote: "Souli's nightly check-ins became my anchor after long shifts. The empathy in every response feels genuinely human.",
-                image: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=400&h=400&q=80',
+                image: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=200&h=200&q=80',
                 before: 'Drained (9/10)',
                 after: 'Grounded (3/10)',
                 improvement: '+75% Emotional Recovery'
@@ -839,6 +852,9 @@ export default function Home() {
                       src={test.image} 
                       alt={test.name} 
                       className="w-full h-full object-cover"
+                      loading="lazy"
+                      width="152"
+                      height="152"
                       onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
                     />
                     <div className="w-full h-full bg-gradient-to-br from-[#2A5565] to-[#A7C4BC] items-center justify-center text-2xl font-bold text-white hidden">
@@ -846,8 +862,8 @@ export default function Home() {
                     </div>
                   </div>
                   <div>
-                    <h5 className="font-bold text-xl text-[#1E2E35]">{test.name}</h5>
-                    <span className="text-sm text-[#2F5D6E]/80 font-medium">{test.title}</span>
+                    <h3 className="font-bold text-xl text-[#1E2E35]">{test.name}</h3>
+                    <span className="text-sm text-[#2A5565] font-medium">{test.title}</span>
                   </div>
                 </div>
                 
@@ -858,15 +874,15 @@ export default function Home() {
                 {/* Before-and-after emotional dashboard metrics */}
                 <div className="grid grid-cols-3 gap-3 pt-6 border-t border-[#2F5D6E]/10">
                   <div className="bg-rose-50 border border-rose-100 rounded-xl p-3 text-center">
-                    <span className="block text-[10px] uppercase text-rose-500 font-bold tracking-wider mb-1">Before</span>
+                    <span className="block text-[10px] uppercase text-rose-700 font-bold tracking-wider mb-1">Before</span>
                     <span className="text-xs font-semibold text-rose-700">{test.before}</span>
                   </div>
                   <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
-                    <span className="block text-[10px] uppercase text-emerald-500 font-bold tracking-wider mb-1">After</span>
+                    <span className="block text-[10px] uppercase text-emerald-700 font-bold tracking-wider mb-1">After</span>
                     <span className="text-xs font-semibold text-emerald-700">{test.after}</span>
                   </div>
                   <div className="bg-[#2F5D6E]/5 border border-[#2F5D6E]/10 rounded-xl p-3 flex flex-col justify-center text-center">
-                    <span className="block text-[10px] uppercase text-[#2F5D6E]/80 font-bold tracking-wider mb-1">Gain</span>
+                    <span className="block text-[10px] uppercase text-[#2F5D6E] font-bold tracking-wider mb-1">Gain</span>
                     <span className="text-xs font-bold text-[#2F5D6E]">{test.improvement}</span>
                   </div>
                 </div>
@@ -898,7 +914,7 @@ export default function Home() {
                     {activeBubble.emoji}
                   </div>
                   <div>
-                    <h4 className="font-bold text-lg text-[#1E2E35]">{activeBubble.name} Bubble</h4>
+                    <h3 className="font-bold text-lg text-[#1E2E35]">{activeBubble.name} Bubble</h3>
                     <span className="text-xs text-[#2F5D6E] font-medium uppercase tracking-wider">Active Choice</span>
                   </div>
                 </div>

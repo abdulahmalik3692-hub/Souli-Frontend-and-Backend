@@ -35,7 +35,7 @@ export default function Splash() {
                     className="relative mb-8"
                 >
                     <div className="absolute inset-0 bg-white/10 blur-2xl rounded-full scale-150" />
-                    <img src={logo} alt="Soulify Logo" className="w-16 h-16 object-contain relative z-10 opacity-90 drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]" />
+                    <img src={logo} alt="Soulify Logo" width="64" height="64" className="w-16 h-16 object-contain relative z-10 opacity-90 drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]" />
                 </motion.div>
 
                 {/* High-End Typography */}
