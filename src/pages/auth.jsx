@@ -22,7 +22,7 @@ export default function Auth() {
         
         try {
             if (type === 'login') {
-                const response = await fetch("http://127.0.0.1:5000/auth/login", {
+                const response = await fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/auth/login`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ email: name, password })
@@ -43,7 +43,7 @@ export default function Auth() {
                     setMessage({ text: data.message || 'Login failed', type: 'error' });
                 }
             } else {
-                const response = await fetch("http://127.0.0.1:5000/auth/signup", {
+                const response = await fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/auth/signup`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ name, email, password })
@@ -71,7 +71,7 @@ export default function Auth() {
         setLoading(true);
         
         try {
-            const response = await fetch("http://127.0.0.1:5000/auth/verify", {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/auth/verify`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, code: verificationCode })

@@ -69,7 +69,7 @@ export default function ReportPage() {
       }
       try {
         const userId = getUserId();
-        const response = await fetch(`http://127.0.0.1:5000/report?user_id=${encodeURIComponent(userId)}&duration=${duration}`);
+        const response = await fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/report?user_id=${encodeURIComponent(userId)}&duration=${duration}`);
         if (!response.ok) {
           throw new Error(`Failed to load: ${response.statusText}`);
         }

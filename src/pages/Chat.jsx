@@ -175,7 +175,7 @@ export default function Chat() {
         const userId = getOrCreateUserId();
         if (!userId) { setHistoryLoading(false); return; }
 
-        fetch(`http://127.0.0.1:5000/chat/history?user_id=${encodeURIComponent(userId)}`)
+        fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/chat/history?user_id=${encodeURIComponent(userId)}`)
             .then(r => r.json())
             .then(data => {
                 if (data.status === 'success') setChatHistory(data.sessions);
@@ -195,7 +195,7 @@ export default function Chat() {
     const loadSession = async (sessionId) => {
         const userId = getOrCreateUserId();
         try {
-            const res = await fetch(`http://127.0.0.1:5000/chat/session?user_id=${encodeURIComponent(userId)}&session_id=${encodeURIComponent(sessionId)}`);
+            const res = await fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/chat/session?user_id=${encodeURIComponent(userId)}&session_id=${encodeURIComponent(sessionId)}`);
             const data = await res.json();
             if (data.status === 'success' && data.session?.messages) {
                 sessionStorage.setItem("soulify_session_id", sessionId);
@@ -227,7 +227,7 @@ export default function Chat() {
         }
 
         // 3. Fire real-time request to the Python FastAPI backend
-        const apiURL = "http://127.0.0.1:8000/chat";
+        const apiURL = `${import.meta.env.VITE_MODEL_URL || "http://127.0.0.1:8000"}/chat`;
         const sessionId = getOrCreateSessionId();
         const userId = getOrCreateUserId();
 
@@ -260,14 +260,14 @@ export default function Chat() {
                 // 5. Persist the full session to Node backend (fire-and-forget)
                 const sessionId = getOrCreateSessionId();
                 const userId = getOrCreateUserId();
-                fetch('http://127.0.0.1:5000/chat/save', {
+                fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/chat/save`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_id: userId, session_id: sessionId, messages: updated })
                 }).then(r => r.json()).then(saved => {
                     // Refresh sidebar list silently after save
                     if (saved.status === 'success') {
-                        fetch(`http://127.0.0.1:5000/chat/history?user_id=${encodeURIComponent(userId)}`)
+                        fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/chat/history?user_id=${encodeURIComponent(userId)}`)
                             .then(r => r.json())
                             .then(histData => { if (histData.status === 'success') setChatHistory(histData.sessions); })
                             .catch(() => {});
@@ -276,7 +276,7 @@ export default function Chat() {
 
                 // Log the detected emotion for the live graph report
                 if (data.emotion) {
-                    fetch('http://127.0.0.1:5000/api/log-mood', {
+                    fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/log-mood`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
