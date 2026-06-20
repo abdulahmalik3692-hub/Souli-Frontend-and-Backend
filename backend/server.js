@@ -14,10 +14,12 @@ import {
   saveChatSession,
   getChatSessionList,
   getChatSessionById,
-  migrateChatSessions
+  migrateChatSessions,
+  savePasswordResetCodeDb,
+  resetPasswordWithCodeDb
 } from './db.js';
 import { EMOTION_MOOD_SCORES } from './constants.js';
-import { sendVerificationEmail } from './utils/mailer.js';
+import { sendVerificationEmail, sendResetPasswordEmail } from './utils/mailer.js';
 
 dotenv.config();
 
@@ -119,7 +121,13 @@ app.post('/auth/signup', async (req, res) => {
     }
 
     // Send real verification email
-    await sendVerificationEmail(email, code);
+    const emailSent = await sendVerificationEmail(email, code);
+    if (!emailSent) {
+      return res.json({
+        status: 'error',
+        message: 'Could not send verification email. Please check your credentials or try again later.'
+      });
+    }
 
     res.json({
       status: 'success',
@@ -193,7 +201,13 @@ app.post('/auth/login', async (req, res) => {
       );
 
       // Send real verification email
-      await sendVerificationEmail(email, code);
+      const emailSent = await sendVerificationEmail(email, code);
+      if (!emailSent) {
+        return res.json({
+          status: 'error',
+          message: 'Could not send verification email. Please check your credentials or try again later.'
+        });
+      }
 
       return res.json({
         status: 'unverified',
@@ -211,6 +225,75 @@ app.post('/auth/login', async (req, res) => {
     res.json({ status: 'error', message: 'An internal login error occurred.' });
   }
 });
+
+app.post('/auth/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.json({ status: 'error', message: 'Missing email address.' });
+  }
+
+  try {
+    if (!users) {
+      return res.json({
+        status: 'error',
+        message: 'Database is currently unavailable.'
+      });
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const [success, message] = await savePasswordResetCodeDb(email, code);
+    if (!success) {
+      return res.json({ status: 'error', message: message });
+    }
+
+    // Send real reset email
+    const emailSent = await sendResetPasswordEmail(email, code);
+    if (!emailSent) {
+      return res.json({
+        status: 'error',
+        message: 'Could not send reset code. Please try again later.'
+      });
+    }
+
+    res.json({
+      status: 'success',
+      message: 'A 6-digit password reset code has been sent to your email.'
+    });
+  } catch (error) {
+    console.error("Forgot password error:", error);
+    res.json({ status: 'error', message: 'An internal forgot password error occurred.' });
+  }
+});
+
+app.post('/auth/reset-password', async (req, res) => {
+  const { email, code, newPassword } = req.body;
+  if (!email || !code || !newPassword) {
+    return res.json({ status: 'error', message: 'Missing required parameters.' });
+  }
+
+  try {
+    if (!users) {
+      return res.json({
+        status: 'error',
+        message: 'Database is currently unavailable.'
+      });
+    }
+
+    const [success, message] = await resetPasswordWithCodeDb(email, code, newPassword);
+    if (!success) {
+      return res.json({ status: 'error', message: message });
+    }
+
+    res.json({
+      status: 'success',
+      message: 'Your password has been successfully reset! You can now sign in.'
+    });
+  } catch (error) {
+    console.error("Reset password error:", error);
+    res.json({ status: 'error', message: 'An internal reset password error occurred.' });
+  }
+});
+
 
 // ── Chat Session Endpoints ──────────────────────────────────────
 
@@ -432,7 +515,7 @@ You must respond with a raw JSON object EXACTLY matching this structure (no mark
 }
 `;
           const response = await groq.chat.completions.create({
-            model: 'llama3-8b-8192',
+            model: 'llama-3.1-8b-instant',
             messages: [{ role: 'user', content: analysisPrompt }],
             temperature: 0.8,
             max_tokens: 500,
@@ -548,10 +631,7 @@ function compileChartPoints(logs, duration) {
       }
       result.push({ day: label, mood: moodVal });
     }
-    return result;
-  }
-
-  if (duration === '2w') {
+  } else if (duration === '2w') {
     const labels = ["W1-M", "W1-W", "W1-F", "W1-S", "W2-M", "W2-W", "W2-F", "W2-S"];
     const binMs = (14 * 24 * 60 * 60 * 1000) / 8;
     const startMs = now - 14 * 24 * 60 * 60 * 1000;
@@ -572,10 +652,7 @@ function compileChartPoints(logs, duration) {
       }
       result.push({ day: labels[i], mood: moodVal });
     }
-    return result;
-  }
-
-  if (duration === '3w') {
+  } else if (duration === '3w') {
     const labels = ["W1", "W1.5", "W2", "W2.5", "W3", "W3.5"];
     const binMs = (21 * 24 * 60 * 60 * 1000) / 6;
     const startMs = now - 21 * 24 * 60 * 60 * 1000;
@@ -596,29 +673,28 @@ function compileChartPoints(logs, duration) {
       }
       result.push({ day: labels[i], mood: moodVal });
     }
-    return result;
-  }
+  } else {
+    // 1m -> 4 intervals
+    const labels = ["Week 1", "Week 2", "Week 3", "Week 4"];
+    const binMs = (30 * 24 * 60 * 60 * 1000) / 4;
+    const startMs = now - 30 * 24 * 60 * 60 * 1000;
 
-  // 1m -> 4 intervals
-  const labels = ["Week 1", "Week 2", "Week 3", "Week 4"];
-  const binMs = (30 * 24 * 60 * 60 * 1000) / 4;
-  const startMs = now - 30 * 24 * 60 * 60 * 1000;
+    for (let i = 0; i < 4; i++) {
+      const binStart = startMs + i * binMs;
+      const binEnd = binStart + binMs;
 
-  for (let i = 0; i < 4; i++) {
-    const binStart = startMs + i * binMs;
-    const binEnd = binStart + binMs;
+      const binLogs = logs.filter(l => {
+        const t = new Date(l.timestamp).getTime();
+        return t >= binStart && t < binEnd;
+      });
 
-    const binLogs = logs.filter(l => {
-      const t = new Date(l.timestamp).getTime();
-      return t >= binStart && t < binEnd;
-    });
-
-    let moodVal = null;
-    if (binLogs.length > 0) {
-      const sum = binLogs.reduce((acc, log) => acc + (EMOTION_MOOD_SCORES[log.emotion] || 6.0), 0);
-      moodVal = parseFloat((sum / binLogs.length).toFixed(1));
+      let moodVal = null;
+      if (binLogs.length > 0) {
+        const sum = binLogs.reduce((acc, log) => acc + (EMOTION_MOOD_SCORES[log.emotion] || 6.0), 0);
+        moodVal = parseFloat((sum / binLogs.length).toFixed(1));
+      }
+      result.push({ day: labels[i], mood: moodVal });
     }
-    result.push({ day: labels[i], mood: moodVal });
   }
 
   // Forward-fill nulls so Recharts always draws a structured, continuous line

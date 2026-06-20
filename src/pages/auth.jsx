@@ -1,6 +1,24 @@
 import React, { useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import authBg from '../assets/images/auth_bg.png';
+import { finalizeLogin } from '../utils/auth';
+
+const BACKGROUND_LINES = [
+    { left: '5%', height: '30%', animation: 'floatUp 11s linear infinite', animationDelay: '1s' },
+    { left: '12%', height: '45%', animation: 'floatUp 9s linear infinite', animationDelay: '3s' },
+    { left: '19%', height: '25%', animation: 'floatUp 14s linear infinite', animationDelay: '0s' },
+    { left: '26%', height: '55%', animation: 'floatUp 8s linear infinite', animationDelay: '4s' },
+    { left: '33%', height: '35%', animation: 'floatUp 12s linear infinite', animationDelay: '2s' },
+    { left: '40%', height: '50%', animation: 'floatUp 10s linear infinite', animationDelay: '1.5s' },
+    { left: '47%', height: '28%', animation: 'floatUp 13s linear infinite', animationDelay: '3.5s' },
+    { left: '54%', height: '42%', animation: 'floatUp 7s linear infinite', animationDelay: '0.5s' },
+    { left: '61%', height: '32%', animation: 'floatUp 11.5s linear infinite', animationDelay: '2.5s' },
+    { left: '68%', height: '58%', animation: 'floatUp 8.5s linear infinite', animationDelay: '4.5s' },
+    { left: '75%', height: '22%', animation: 'floatUp 15s linear infinite', animationDelay: '1.2s' },
+    { left: '82%', height: '48%', animation: 'floatUp 9.5s linear infinite', animationDelay: '3.2s' },
+    { left: '89%', height: '38%', animation: 'floatUp 10.5s linear infinite', animationDelay: '0.8s' },
+    { left: '95%', height: '52%', animation: 'floatUp 7.8s linear infinite', animationDelay: '2.2s' }
+];
 
 export default function Auth() {
     const location = useLocation();
@@ -14,6 +32,16 @@ export default function Auth() {
     const [message, setMessage] = useState({ text: '', type: '' });
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
+
+    // Reset password states
+    const [isForgotPassword, setIsForgotPassword] = useState(false);
+    const [forgotEmail, setForgotEmail] = useState('');
+    const [resetCode, setResetCode] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [forgotStep, setForgotStep] = useState(1);
+
+
 
     const handleAuth = async (e, type) => {
         e.preventDefault();
@@ -30,7 +58,7 @@ export default function Auth() {
                 const data = await response.json();
                 
                 if (data.status === 'success') {
-                    localStorage.setItem("soulify_user", JSON.stringify(data.user));
+                    await finalizeLogin(data.user);
                     setMessage({ text: 'Login successful! Redirecting...', type: 'success' });
                     setTimeout(() => {
                         navigate('/chat');
@@ -59,6 +87,74 @@ export default function Auth() {
             }
         } catch (error) {
             console.error("Auth error:", error);
+            setMessage({ text: 'Unable to connect to the authentication server.', type: 'error' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleRequestReset = async (e) => {
+        e.preventDefault();
+        setMessage({ text: '', type: '' });
+        setLoading(true);
+
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/auth/forgot-password`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: forgotEmail })
+            });
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                setMessage({ text: data.message, type: 'success' });
+                setForgotStep(2);
+            } else {
+                setMessage({ text: data.message || 'Request failed', type: 'error' });
+            }
+        } catch (error) {
+            console.error("Forgot password request error:", error);
+            setMessage({ text: 'Unable to connect to the authentication server.', type: 'error' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleResetPassword = async (e) => {
+        e.preventDefault();
+        setMessage({ text: '', type: '' });
+
+        if (newPassword !== confirmPassword) {
+            setMessage({ text: 'Passwords do not match.', type: 'error' });
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/auth/reset-password`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: forgotEmail, code: resetCode, newPassword })
+            });
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                setMessage({ text: data.message, type: 'success' });
+                setTimeout(() => {
+                    setIsForgotPassword(false);
+                    setForgotStep(1);
+                    setForgotEmail('');
+                    setResetCode('');
+                    setNewPassword('');
+                    setConfirmPassword('');
+                    setIsRightPanelActive(false);
+                }, 2500);
+            } else {
+                setMessage({ text: data.message || 'Reset failed', type: 'error' });
+            }
+        } catch (error) {
+            console.error("Reset password process error:", error);
             setMessage({ text: 'Unable to connect to the authentication server.', type: 'error' });
         } finally {
             setLoading(false);
@@ -109,15 +205,15 @@ export default function Auth() {
             {/* Glowing Floating Lines Background (Inspired by React Bits) */}
             <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
                 {/* Map multiple vertical lines to fill the viewport floating upwards */}
-                {[...Array(20)].map((_, i) => (
+                {BACKGROUND_LINES.map((line, i) => (
                     <div
                         key={i}
                         className="absolute bottom-[-20%] w-[1px] bg-gradient-to-t from-transparent via-[#38768B] to-transparent opacity-30"
                         style={{
-                            left: `${Math.random() * 100}%`,
-                            height: `${Math.random() * 40 + 20}%`,
-                            animation: `floatUp ${Math.random() * 8 + 7}s linear infinite`,
-                            animationDelay: `${Math.random() * 5}s`,
+                            left: line.left,
+                            height: line.height,
+                            animation: line.animation,
+                            animationDelay: line.animationDelay,
                             filter: 'blur(2px)'
                         }}
                     ></div>
@@ -373,6 +469,118 @@ export default function Auth() {
 
             <div className={`auth-container ${isRightPanelActive ? 'right-panel-active' : ''}`}>
 
+                {/* 1b. Forgot Password Overlay Panel */}
+                {isForgotPassword && (
+                    <div className="absolute inset-0 z-[1000] flex items-center justify-center bg-[#0A1E26]/98 backdrop-blur-md animate-fade-in">
+                        {forgotStep === 1 ? (
+                            <form className="auth-form max-w-md w-full px-8 py-12 flex flex-col items-center" onSubmit={handleRequestReset}>
+                                <h1 className="text-3xl font-bold mb-4">
+                                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#7EC8C8] to-[#38768B]">Reset Password</span>
+                                </h1>
+                                <p className="text-[#A7C4BC] text-[13px] font-light mb-6 max-w-[320px] leading-relaxed">
+                                    Enter your registered email address below, and we'll send you a 6-digit verification code to reset your password.
+                                </p>
+                                
+                                {message.text && (
+                                    <div className={`text-xs my-3 font-semibold px-4 py-2 rounded-lg border ${
+                                        message.type === 'success' 
+                                            ? 'bg-[#7EC8C8]/10 text-[#7EC8C8] border-[#7EC8C8]/20' 
+                                            : 'bg-red-500/10 text-red-400 border-red-500/20'
+                                    }`}>
+                                        {message.text}
+                                    </div>
+                                )}
+
+                                <input
+                                    type="email"
+                                    placeholder="Enter your email"
+                                    className="auth-input text-center"
+                                    value={forgotEmail}
+                                    onChange={e => setForgotEmail(e.target.value)}
+                                    required
+                                />
+                                
+                                <button type="submit" className="auth-btn" disabled={loading}>
+                                    {loading ? 'Sending...' : 'Send Reset Code'}
+                                </button>
+                                
+                                <button 
+                                    type="button" 
+                                    className="text-xs text-[#A7C4BC]/60 hover:text-white mt-6 underline cursor-pointer bg-transparent border-none outline-none"
+                                    onClick={() => {
+                                        setIsForgotPassword(false);
+                                        setMessage({ text: '', type: '' });
+                                    }}
+                                >
+                                    Back to Sign In
+                                </button>
+                            </form>
+                        ) : (
+                            <form className="auth-form max-w-md w-full px-8 py-12 flex flex-col items-center" onSubmit={handleResetPassword}>
+                                <h1 className="text-3xl font-bold mb-4">
+                                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#7EC8C8] to-[#38768B]">New Password</span>
+                                </h1>
+                                <p className="text-[#A7C4BC] text-[13px] font-light mb-6 max-w-[320px] leading-relaxed">
+                                    Enter the 6-digit code sent to <strong className="text-white">{forgotEmail}</strong> along with your new password.
+                                </p>
+                                
+                                {message.text && (
+                                    <div className={`text-xs my-3 font-semibold px-4 py-2 rounded-lg border ${
+                                        message.type === 'success' 
+                                            ? 'bg-[#7EC8C8]/10 text-[#7EC8C8] border-[#7EC8C8]/20' 
+                                            : 'bg-red-500/10 text-red-400 border-red-500/20'
+                                    }`}>
+                                        {message.text}
+                                    </div>
+                                )}
+
+                                <input
+                                    type="text"
+                                    placeholder="6-digit Code"
+                                    className="auth-input text-center text-lg tracking-[0.2em] font-mono"
+                                    maxLength={6}
+                                    value={resetCode}
+                                    onChange={e => setResetCode(e.target.value)}
+                                    required
+                                />
+
+                                <input
+                                    type="password"
+                                    placeholder="New Password"
+                                    className="auth-input"
+                                    value={newPassword}
+                                    onChange={e => setNewPassword(e.target.value)}
+                                    required
+                                />
+
+                                <input
+                                    type="password"
+                                    placeholder="Confirm Password"
+                                    className="auth-input"
+                                    value={confirmPassword}
+                                    onChange={e => setConfirmPassword(e.target.value)}
+                                    required
+                                />
+                                
+                                <button type="submit" className="auth-btn" disabled={loading}>
+                                    {loading ? 'Resetting...' : 'Update Password'}
+                                </button>
+                                
+                                <button 
+                                    type="button" 
+                                    className="text-xs text-[#A7C4BC]/60 hover:text-white mt-6 underline cursor-pointer bg-transparent border-none outline-none"
+                                    onClick={() => {
+                                        setForgotStep(1);
+                                        setMessage({ text: '', type: '' });
+                                    }}
+                                >
+                                    Back
+                                </button>
+                            </form>
+                        )}
+                    </div>
+                )}
+
                 {/* 1. Email Verification Overlay Panel */}
                 {isVerifying && (
                     <div className="absolute inset-0 z-[1000] flex items-center justify-center bg-[#0A1E26]/98 backdrop-blur-md animate-fade-in">
@@ -499,7 +707,18 @@ export default function Auth() {
                                 {message.text}
                             </div>
                         )}
-                        <Link to="#" className="text-[#A7C4BC] text-sm mt-4 hover:text-white transition-colors">Forgot your password?</Link>
+                        <a 
+                            href="#"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                setIsForgotPassword(true);
+                                setForgotStep(1);
+                                setMessage({ text: '', type: '' });
+                            }}
+                            className="text-[#A7C4BC] text-sm mt-4 hover:text-white transition-colors cursor-pointer"
+                        >
+                            Forgot your password?
+                        </a>
                         <button type="submit" className="auth-btn" disabled={loading}>
                             {loading ? 'Signing In...' : 'Sign In'}
                         </button>

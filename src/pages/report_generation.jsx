@@ -588,7 +588,7 @@ export default function ReportPage() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
                     <XAxis dataKey="day" stroke="#A7C4BC" fontSize={11} tickLine={false} axisLine={false} dy={8} />
-                    <YAxis stroke="#A7C4BC" fontSize={11} tickLine={false} axisLine={false} domain={[0, 10]} dx={-10} />
+                    <YAxis stroke="#A7C4BC" fontSize={11} tickLine={false} axisLine={false} domain={[0, 10]} ticks={[0, 2, 4, 6, 8, 10]} dx={-10} />
                     <Tooltip 
                       contentStyle={{ backgroundColor: 'rgba(5,14,18,0.8)', backdropFilter: 'blur(16px)', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', boxShadow: '0 20px 40px rgba(0,0,0,0.5)', padding: '10px 16px' }}
                       itemStyle={{ color: '#7EC8C8', fontWeight: 'bold' }}

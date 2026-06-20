@@ -134,7 +134,7 @@ export async function verifyUserCodeDb(email, code) {
     const storedCode = user.verification_code;
     const expires = user.verification_expires ? new Date(user.verification_expires) : null;
     
-    if (!storedCode || storedCode !== code) {
+    if (!storedCode || String(storedCode).trim() !== String(code).trim()) {
       return [false, "Invalid verification code"];
     }
     
@@ -259,13 +259,91 @@ export async function migrateChatSessions(fromUserId, toUserId) {
     if (!fromUserId || !toUserId || fromUserId === toUserId) {
       return 0;
     }
+    
+    // Migrate chat sessions
     const result = await chatSessions.updateMany(
       { user_id: fromUserId },
       { $set: { user_id: toUserId } }
     );
+    
+    // Migrate mood logs
+    if (moodLogs) {
+      await moodLogs.updateMany(
+        { user_id: fromUserId },
+        { $set: { user_id: toUserId } }
+      );
+    }
+    
     return result.modifiedCount ?? 0;
   } catch (error) {
     console.error("Error migrating chat sessions:", error);
     return 0;
+  }
+}
+
+export async function savePasswordResetCodeDb(email, code) {
+  try {
+    const emailClean = email.toLowerCase().trim();
+    const user = await getUserByEmail(emailClean);
+    if (!user) {
+      return [false, "No account exists with this email address."];
+    }
+    
+    const expires = new Date();
+    expires.setMinutes(expires.getMinutes() + 15);
+    
+    await users.updateOne(
+      { email: emailClean },
+      {
+        $set: {
+          reset_code: code,
+          reset_expires: expires,
+          updated_at: new Date()
+        }
+      }
+    );
+    return [true, "Reset code generated"];
+  } catch (error) {
+    console.error("Error saving password reset code:", error);
+    return [false, "Failed to initiate password reset."];
+  }
+}
+
+export async function resetPasswordWithCodeDb(email, code, newPassword) {
+  try {
+    const emailClean = email.toLowerCase().trim();
+    const user = await getUserByEmail(emailClean);
+    if (!user) {
+      return [false, "User not found."];
+    }
+    
+    const storedCode = user.reset_code;
+    const expires = user.reset_expires ? new Date(user.reset_expires) : null;
+    
+    if (!storedCode || String(storedCode).trim() !== String(code).trim()) {
+      return [false, "Invalid reset code."];
+    }
+    
+    if (expires && new Date() > expires) {
+      return [false, "Reset code has expired. Please request a new one."];
+    }
+    
+    const newPwdHash = hashPassword(newPassword);
+    
+    await users.updateOne(
+      { email: emailClean },
+      {
+        $set: {
+          password_hash: newPwdHash,
+          reset_code: null,
+          reset_expires: null,
+          updated_at: new Date()
+        }
+      }
+    );
+    return [true, "Password successfully updated."];
+  } catch (error) {
+    console.error("Error resetting password:", error);
+    return [false, `Reset password process failed: ${error.message}`];
   }
 }

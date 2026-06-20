@@ -1,17 +1,35 @@
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 import { Mail, Phone, Clock, MapPin, Instagram, Facebook, Youtube, Twitter } from 'lucide-react';
 import './Footer.css';
 
-const Footer = () => (
-  <footer className="short-footer-root">
-    {/* SVG Wave top edge */}
-    <div className="short-footer-wave">
-      <svg viewBox="0 0 1440 120" preserveAspectRatio="none">
-        <path d="M0,60 C320,120 420,0 720,60 C1020,120 1120,0 1440,60 L1440,120 L0,120 Z" fill="#305D6E" />
-      </svg>
-    </div>
+const Footer = () => {
+  const location = useLocation();
 
-    <div className="short-footer-content">
+  // Dynamically set the wave background color to match the bottom of the preceding page section
+  let waveBgColor = '#050e12'; // Default dark background for Why, Contact, Report, etc.
+  
+  if (location.pathname === '/home') {
+    waveBgColor = '#edf5f8'; // Matches the Home page last section's bottom gradient color
+  } else if (location.pathname === '/about') {
+    waveBgColor = '#ffffff'; // Matches the About page last section's white background
+  } else if (location.pathname === '/work') {
+    waveBgColor = '#07141a'; // Combined color of #0A1E26/40 overlay on #050e12 base
+  } else if (location.pathname !== '/why' && location.pathname !== '/contact' && location.pathname !== '/report') {
+    // If it's a 404 or any other unexpected route with a footer, match the error page background
+    waveBgColor = '#D1E0E1';
+  }
+
+  return (
+    <footer className="short-footer-root">
+      {/* SVG Wave top edge */}
+      <div className="short-footer-wave" style={{ backgroundColor: waveBgColor }}>
+        <svg viewBox="0 0 1440 120" preserveAspectRatio="none">
+          <path d="M0,60 C320,120 420,0 720,60 C1020,120 1120,0 1440,60 L1440,120 L0,120 Z" fill="#305D6E" />
+        </svg>
+      </div>
+
+      <div className="short-footer-content">
       <div className="short-footer-content-inner">
         <div className="short-footer-grid">
         
@@ -67,6 +85,7 @@ const Footer = () => (
     </div>
     </div>
   </footer>
-);
+  );
+};
 
 export default Footer;
