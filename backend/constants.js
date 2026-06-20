@@ -77,3 +77,36 @@ export const SLOW_TYPING_CONFIDENCE_PENALTY = 0.25;      // Reduce confidence
 // Fast typing + neutral/calm emotion = likely hidden agitation
 export const FAST_TYPING_OVERRIDE_EMOTIONS = new Set(['neutral', 'realization', 'curiosity', 'surprise']);
 export const FAST_TYPING_OVERRIDE_CONFIDENCE = 0.55;
+
+// Color psychology themes for all 28 emotions
+export const EMOTION_THEMES = {
+  'sadness':        { bg: '#FFFDF0', accent: '#FFD700', text: '#8B7300' },
+  'grief':          { bg: '#FFFDF0', accent: '#FFD700', text: '#8B7300' },
+  'remorse':        { bg: '#FFFDF0', accent: '#FFD700', text: '#8B7300' },
+  'fear':           { bg: '#F0FFF4', accent: '#38A169', text: '#22543D' },
+  'nervousness':    { bg: '#F0FFF4', accent: '#38A169', text: '#22543D' },
+  'anger':          { bg: '#F0F5FF', accent: '#3182CE', text: '#2A4365' },
+  'annoyance':      { bg: '#F0F5FF', accent: '#3182CE', text: '#2A4365' },
+  'disgust':        { bg: '#F0F5FF', accent: '#3182CE', text: '#2A4365' },
+  'disapproval':    { bg: '#F0F5FF', accent: '#3182CE', text: '#2A4365' },
+  'confusion':      { bg: '#FAF5FF', accent: '#805AD5', text: '#44337A' },
+  'disappointment': { bg: '#E6FFFA', accent: '#319795', text: '#234E52' },
+  'embarrassment':  { bg: '#FFF5F7', accent: '#D53F8C', text: '#702459' },
+  'joy':            { bg: '#FFFAF0', accent: '#ED8936', text: '#7B341E' },
+  'excitement':     { bg: '#FFFAF0', accent: '#ED8936', text: '#7B341E' },
+  'amusement':      { bg: '#FFFAF0', accent: '#ED8936', text: '#7B341E' },
+  'love':           { bg: '#FFF5F5', accent: '#E53E3E', text: '#742A2A' },
+  'desire':         { bg: '#FFF5F5', accent: '#E53E3E', text: '#742A2A' },
+  'caring':         { bg: '#FFF5F5', accent: '#E53E3E', text: '#742A2A' },
+  'admiration':     { bg: '#EBF4FF', accent: '#4299E1', text: '#2B6CB0' },
+  'approval':       { bg: '#EBF4FF', accent: '#4299E1', text: '#2B6CB0' },
+  'gratitude':      { bg: '#F0FFF4', accent: '#48BB78', text: '#22543D' },
+  'optimism':       { bg: '#F0FFF4', accent: '#48BB78', text: '#22543D' },
+  'pride':          { bg: '#F0FFF4', accent: '#48BB78', text: '#22543D' },
+  'curiosity':      { bg: '#FAF5FF', accent: '#9F7AEA', text: '#553C9A' },
+  'realization':    { bg: '#FAF5FF', accent: '#9F7AEA', text: '#553C9A' },
+  'surprise':       { bg: '#FAF5FF', accent: '#9F7AEA', text: '#553C9A' },
+  'relief':         { bg: '#E6FFFA', accent: '#38B2AC', text: '#285E61' },
+  'neutral':        { bg: '#F7FAFC', accent: '#A0AEC0', text: '#2D3748' },
+};
+

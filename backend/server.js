@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import Groq from 'groq-sdk';
 import compression from 'compression';
+import { pipeline } from '@xenova/transformers';
 import {
   connectDb,
   createOrUpdateUnverifiedUser,
@@ -18,7 +19,21 @@ import {
   savePasswordResetCodeDb,
   resetPasswordWithCodeDb
 } from './db.js';
-import { EMOTION_MOOD_SCORES } from './constants.js';
+import { 
+  EMOTION_MOOD_SCORES,
+  NEGATIVE_EMOTIONS,
+  FAST_BOOST_EMOTIONS,
+  SLOW_BOOST_EMOTIONS,
+  SLOW_TYPING_SUSPICION_THRESHOLD,
+  SLOW_TYPING_CONFIDENCE_PENALTY,
+  FAST_TYPING_OVERRIDE_EMOTIONS,
+  FAST_TYPING_OVERRIDE_CONFIDENCE,
+  NEGATIVE_OVERRIDE_THRESHOLD,
+  SMOOTHING_BOOST,
+  KEYWORD_BOOST,
+  CONTEXT_WEIGHT,
+  EMOTION_THEMES
+} from './constants.js';
 import { sendVerificationEmail, sendResetPasswordEmail } from './utils/mailer.js';
 
 dotenv.config();
@@ -709,6 +724,1062 @@ function compileChartPoints(logs, duration) {
 
   return result;
 }
+
+// ── AI Chat Integration (Ported from Python Backend) ─────────────────
+
+const emotionHistory = new Map();
+
+// Periodically clean up emotion history cache to prevent memory leaks
+setInterval(() => {
+  const now = Date.now();
+  for (const [sid, data] of emotionHistory.entries()) {
+    if (now - data.lastSeen > 60 * 60 * 1000) {
+      emotionHistory.delete(sid);
+    }
+  }
+}, 5 * 60 * 1000);
+
+const SARCASM_PATTERNS = [
+  { pattern: /\boh\s+(great|wonderful|fantastic|perfect|lovely|nice)\b/i, emotion: 'annoyance' },
+  { pattern: /\bjust\s+what\s+i\s+(needed|wanted)\b/i, emotion: 'annoyance' },
+  { pattern: /\byeah[,\s]*\s*(right|sure|okay|ok|fine)\b/i, emotion: 'annoyance' },
+  { pattern: /\bwonderful[,\s]*\s*(another|more|again|now)\b/i, emotion: 'annoyance' },
+  { pattern: /\b(total|totally|completely|absolutely)\s+fine\b/i, emotion: 'sadness' },
+  { pattern: /\bi\s+(am|m)\s+fine[.,\s]*\s*(really|trust me|don't worry|it's nothing|forget it)\b/i, emotion: 'sadness' },
+  { pattern: /\bfine[.,\s]*\s*everything\s+(is\s+)?fine\b/i, emotion: 'sadness' },
+  { pattern: /\bnot\s+(exactly|really|quite)\s+(happy|thrilled|excited|pleased|overjoyed)\b/i, emotion: 'disappointment' },
+  { pattern: /\bso\s+(happy|glad|excited)\s+(about|for)\s+this[.,\s]*\s*(not|never|hate|ugh)\b/i, emotion: 'annoyance' }
+];
+
+function detectSarcasm(text) {
+  const textLower = text.toLowerCase();
+  for (const { pattern, emotion } of SARCASM_PATTERNS) {
+    if (pattern.test(textLower)) {
+      return { emotion, confidence: 0.75 };
+    }
+  }
+  return null;
+}
+
+const CONTRACTIONS = {
+  "i'm": "i am", "don't": "do not", "can't": "cannot",
+  "won't": "will not", "isn't": "is not", "aren't": "are not",
+  "wasn't": "was not", "weren't": "were not", "hasn't": "has not",
+  "haven't": "have not", "hadn't": "had not", "doesn't": "does not",
+  "didn't": "did not", "couldn't": "could not", "shouldn't": "should not",
+  "wouldn't": "would not", "i've": "i have", "you've": "you have",
+  "we've": "we have", "they've": "they have", "i'll": "i will",
+  "you'll": "you will", "we'll": "we will", "they'll": "they will",
+  "i'd": "i would", "you'd": "you would", "he'd": "he would",
+  "she'd": "she would", "we'd": "we would", "they'd": "they would",
+  "it's": "it is", "that's": "that is", "what's": "what is",
+  "who's": "who is", "where's": "where is", "how's": "how is",
+  "let's": "let us", "there's": "there is", "here's": "here is"
+};
+
+const SLANG_MAP = {
+  "im": "i am", "ive": "i have", "id": "i would",
+  "cant": "cannot", "dont": "do not", "wont": "will not",
+  "didnt": "did not", "doesnt": "does not", "isnt": "is not",
+  "wasnt": "was not", "havent": "have not", "hasnt": "has not",
+  "couldnt": "could not", "shouldnt": "should not",
+  "wouldnt": "would not",
+  "rn": "right now", "ngl": "not going to lie",
+  "tbh": "to be honest", "imo": "in my opinion",
+  "idk": "i do not know", "smh": "shaking my head",
+  "omg": "oh my god", "nvm": "never mind",
+  "pls": "please", "plz": "please", "thx": "thanks",
+  "ty": "thank you", "bf": "boyfriend", "gf": "girlfriend",
+  "gonna": "going to", "wanna": "want to", "gotta": "got to",
+  "kinda": "kind of", "sorta": "sort of", "prolly": "probably",
+  "cuz": "because", "bcuz": "because", "coz": "because",
+  "ur": "your", "u": "you", "r": "are",
+  "luv": "love", "gud": "good", "bt": "but",
+  "hw": "how", "abt": "about", "tho": "though",
+  "w/": "with", "w/o": "without"
+};
+
+const EMOJI_MAP = {
+  '😢': ' sad ', '😭': ' very sad crying ', '😞': ' disappointed ',
+  '😔': ' sad down ', '🥺': ' sad pleading ', '😿': ' sad ',
+  '😡': ' angry ', '🤬': ' very angry ', '😠': ' angry ',
+  '💢': ' angry ', '👿': ' angry ',
+  '😨': ' scared afraid ', '😰': ' anxious worried ', '😱': ' terrified ',
+  '😳': ' embarrassed ', '😳': ' embarrassed shocked ',
+  '😊': ' happy ', '😄': ' happy joyful ', '🥰': ' love happy ',
+  '😍': ' love adore ', '❤️': ' love ', '💕': ' love ',
+  '🥳': ' excited celebrating ', '🎉': ' excited joy ',
+  '😎': ' confident proud ', '💪': ' strong proud ',
+  '🤔': ' thinking curious ', '😐': ' neutral ',
+  '😤': ' frustrated annoyed ', '🙄': ' annoyed ',
+  '😮': ' surprised ', '😲': ' surprised shocked ',
+  '🤗': ' caring warm ', '🙏': ' grateful thankful ',
+  '😌': ' relieved calm ', '🤮': ' disgusted ',
+  '💔': ' heartbroken sad grief '
+};
+
+function preprocessText(text) {
+  let processed = text;
+  for (const [emoji, replacement] of Object.entries(EMOJI_MAP)) {
+    processed = processed.replaceAll(emoji, replacement);
+  }
+  processed = processed.toLowerCase().trim();
+  for (const [contraction, expansion] of Object.entries(CONTRACTIONS)) {
+    processed = processed.replaceAll(contraction, expansion);
+  }
+  const words = processed.split(/\s+/);
+  const mappedWords = words.map(w => SLANG_MAP[w] || w);
+  processed = mappedWords.join(' ');
+  processed = processed.replace(/[^\x00-\x7F]/g, ""); // ASCII only
+  processed = processed.replace(/\s+/g, ' ').trim();
+  return processed;
+}
+
+const EMOTION_KEYWORDS = {
+  'sadness':        ['sad', 'unhappy', 'depressed', 'down', 'blue', 'miserable',
+                       'heartbroken', 'cry', 'crying', 'tears', 'lonely', 'alone',
+                       'empty', 'hopeless', 'devastated', 'broken', 'hurting',
+                       'fine', 'okay', 'ok', 'alright', 'nothing', 'whatever', 'numb'],
+  'grief':          ['grief', 'mourning', 'loss', 'bereaved', 'grieving',
+                       'passed away', 'died', 'death', 'funeral', 'gone forever'],
+  'remorse':        ['sorry', 'regret', 'guilty', 'guilt', 'ashamed',
+                       'remorseful', 'apologize', 'mistake', 'fault'],
+  'fear':           ['scared', 'afraid', 'terrified', 'frightened', 'panic',
+                       'dread', 'petrified', 'horrified', 'fearful', 'phobia'],
+  'nervousness':    ['nervous', 'anxious', 'worried', 'uneasy', 'tense',
+                       'jittery', 'restless', 'stressed', 'overwhelmed',
+                       'panicking', 'overthinking', 'anxiety', 'exam', 'interview'],
+  'anger':          ['angry', 'furious', 'mad', 'rage', 'pissed', 'livid',
+                       'outraged', 'infuriated', 'hostile', 'enraged', 'irate', 'hate',
+                       'betrayed', 'betrayal', 'backstabbed', 'cheated', 'used',
+                       'manipulated', 'lied to', 'deceived', 'stabbed in the back'],
+  'annoyance':      ['annoyed', 'irritated', 'bugged', 'bothered', 'nagging',
+                       'pestering', 'tiresome', 'ugh', 'argh', 'sarcastic', 'sarcasm'],
+  'disgust':        ['disgusted', 'gross', 'revolting', 'sickening',
+                       'nauseating', 'repulsive', 'vile', 'nasty', 'eww', 'disgusting'],
+  'disappointment': ['disappointed', 'letdown', 'let down', 'failed',
+                       'failure', 'unfair', 'unsatisfied', 'expected more'],
+  'confusion':      ['confused', 'lost', 'uncertain', 'unsure', 'puzzled',
+                       'bewildered', 'perplexed', 'disoriented', 'no idea'],
+  'disapproval':    ['wrong', 'disapprove', 'disagree', 'unacceptable',
+                       'inappropriate', 'bad idea', 'terrible'],
+  'embarrassment':  ['embarrassed', 'humiliated', 'ashamed', 'mortified',
+                       'awkward', 'cringe', 'uncomfortable'],
+  'joy':            ['happy', 'joyful', 'wonderful', 'amazing', 'fantastic',
+                       'great', 'blessed', 'delighted', 'cheerful', 'ecstatic',
+                       'elated', 'blissful', 'overjoyed'],
+  'excitement':     ['excited', 'pumped', 'thrilled', 'hyped', 'stoked',
+                       'eager', 'cannot wait', 'can not wait', 'psyched'],
+  'love':           ['love', 'adore', 'cherish', 'affection', 'romantic',
+                       'crush', 'soulmate', 'passionate', 'devoted', 'sweetheart'],
+  'amusement':      ['funny', 'hilarious', 'laughing', 'amusing', 'humorous',
+                       'comedy', 'joke', 'lmao', 'haha', 'lol'],
+  'desire':         ['want', 'wish', 'desire', 'crave', 'yearn', 'longing',
+                       'miss', 'missing'],
+  'admiration':     ['admire', 'respect', 'inspired', 'impressed', 'incredible',
+                       'look up to', 'role model'],
+  'caring':         ['care', 'caring', 'concerned', 'worry about',
+                       'compassion', 'empathy', 'hope you'],
+  'approval':       ['agree', 'approve', 'support', 'endorse', 'good job',
+                       'well done', 'nice work', 'exactly'],
+  'gratitude':      ['grateful', 'thankful', 'appreciate', 'thanks',
+                       'thank you', 'blessed'],
+  'optimism':       ['hopeful', 'optimistic', 'positive', 'bright',
+                       'promising', 'looking forward', 'better days'],
+  'pride':          ['proud', 'accomplished', 'achieved', 'success',
+                       'triumphant', 'nailed it', 'killed it'],
+  'curiosity':      ['curious', 'wondering', 'interested', 'intrigued',
+                       'fascinated', 'how does', 'what if'],
+  'realization':    ['realized', 'understand', 'figured out', 'discovered',
+                       'noticed', 'epiphany', 'now i see', 'makes sense'],
+  'surprise':       ['surprised', 'shocked', 'astonished', 'amazed',
+                       'stunned', 'unexpected', 'wow', 'unbelievable', 'no way']
+};
+
+function computeKeywordBoosts(text) {
+  const textLower = text.toLowerCase();
+  const wordsSet = new Set(textLower.split(/\s+/));
+  const boosts = {};
+  for (const [emotion, keywords] of Object.entries(EMOTION_KEYWORDS)) {
+    let matchCount = 0;
+    for (const kw of keywords) {
+      if (kw.includes(' ')) {
+        if (textLower.includes(kw)) {
+          matchCount++;
+        }
+      } else {
+        if (wordsSet.has(kw)) {
+          matchCount++;
+        }
+      }
+    }
+    if (matchCount > 0) {
+      const multiplier = emotion === 'disgust' ? 2.0 : 1.0;
+      const boost = KEYWORD_BOOST * multiplier * (1.0 - Math.pow(0.5, matchCount));
+      boosts[emotion] = parseFloat(boost.toFixed(4));
+    }
+  }
+  return boosts;
+}
+
+function recalibrateConfidence(rawScore) {
+  if (rawScore >= 0.80) {
+    return Math.min(0.95 + (rawScore - 0.80) * 0.20, 0.99);
+  } else if (rawScore >= 0.50) {
+    return 0.78 + (rawScore - 0.50) * (0.17 / 0.30);
+  } else if (rawScore >= 0.30) {
+    return 0.60 + (rawScore - 0.30) * (0.18 / 0.20);
+  } else if (rawScore >= 0.15) {
+    return 0.45 + (rawScore - 0.15) * (0.15 / 0.15);
+  } else {
+    return Math.max(rawScore * 3.0, 0.10);
+  }
+}
+
+function applyTypingModifier(emotion, confidence, typingSpeed) {
+  if (typingSpeed < SLOW_TYPING_SUSPICION_THRESHOLD &&
+      ['joy', 'approval', 'admiration', 'optimism', 'gratitude'].includes(emotion)) {
+    confidence = Math.max(confidence - SLOW_TYPING_CONFIDENCE_PENALTY, 0.45);
+    return parseFloat(confidence.toFixed(3));
+  }
+
+  if (typingSpeed > 8 && FAST_TYPING_OVERRIDE_EMOTIONS.has(emotion)) {
+    return parseFloat(FAST_TYPING_OVERRIDE_CONFIDENCE.toFixed(3));
+  }
+
+  let boost = 0.0;
+  if (typingSpeed > 7 && FAST_BOOST_EMOTIONS.has(emotion)) {
+    boost = 0.08;
+  } else if (typingSpeed < 3 && SLOW_BOOST_EMOTIONS.has(emotion)) {
+    boost = 0.08;
+  }
+
+  return parseFloat(Math.min(confidence + boost, 0.99).toFixed(3));
+}
+
+let classifierPipeline = null;
+async function getClassifierPipeline() {
+  if (!classifierPipeline) {
+    classifierPipeline = await pipeline('text-classification', 'MicahB/roberta-base-go_emotions');
+  }
+  return classifierPipeline;
+}
+
+async function detectEmotion(newMessage, sessionId, typingSpeed = 5.0) {
+  const now = Date.now();
+  if (!emotionHistory.has(sessionId)) {
+    emotionHistory.set(sessionId, { data: [], lastSeen: now });
+  }
+  const historyObj = emotionHistory.get(sessionId);
+  historyObj.lastSeen = now;
+  const history = historyObj.data;
+
+  // 1. Sarcasm detection
+  const sarcasm = detectSarcasm(newMessage);
+  if (sarcasm) {
+    const sarcasmEmotion = sarcasm.emotion;
+    let confidence = sarcasm.confidence;
+    const cleaned = preprocessText(newMessage);
+    
+    try {
+      const classifier = await getClassifierPipeline();
+      const allScores = await classifier(cleaned.slice(0, 512), { topk: null });
+      const matching = allScores.find(s => s.label === sarcasmEmotion);
+      if (matching) {
+        confidence = Math.max(matching.score + 0.20, confidence);
+      }
+    } catch (e) {
+      console.error("Classifier error in sarcasm detection:", e);
+    }
+
+    confidence = recalibrateConfidence(Math.min(confidence, 1.0));
+
+    if (history.length > 0) {
+      if (history[history.length - 1].emotion === sarcasmEmotion) {
+        confidence = confidence * SMOOTHING_BOOST;
+      }
+      if (history.length >= 2) {
+        const recent = history.slice(-3).map(h => h.emotion);
+        if (recent.filter(e => e === sarcasmEmotion).length >= 2) {
+          confidence += CONTEXT_WEIGHT;
+        }
+      }
+    }
+
+    confidence = recalibrateConfidence(Math.min(confidence, 1.0));
+    const roundedConf = parseFloat(confidence.toFixed(3));
+    history.push({ emotion: sarcasmEmotion, confidence: roundedConf });
+    if (history.length > 5) history.shift();
+
+    return { emotion: sarcasmEmotion, confidence: roundedConf };
+  }
+
+  // 2. Regular classification
+  const cleaned = preprocessText(newMessage);
+  const classifier = await getClassifierPipeline();
+  const allScores = await classifier(cleaned.slice(0, 512), { topk: null });
+  const keywordBoosts = computeKeywordBoosts(cleaned);
+
+  // Strong disgust override for explicit words
+  const explicitDisgust = ['revolting', 'repulsive', 'vile', 'nauseating', 'sickening', 'disgusting'];
+  if (explicitDisgust.some(w => cleaned.includes(w))) {
+    const disgustItem = allScores.find(s => s.label === 'disgust');
+    if (disgustItem) {
+      disgustItem.score = Math.max(disgustItem.score, 0.60);
+    }
+  }
+
+  if (keywordBoosts) {
+    for (const item of allScores) {
+      if (keywordBoosts[item.label] !== undefined) {
+        item.score += keywordBoosts[item.label];
+      }
+    }
+  }
+
+  allScores.sort((a, b) => b.score - a.score);
+  let top = allScores[0];
+  let emotion = top.label;
+  let confidence = top.score;
+
+  if (!NEGATIVE_EMOTIONS.has(emotion)) {
+    for (let i = 1; i < allScores.length; i++) {
+      const item = allScores[i];
+      if (NEGATIVE_EMOTIONS.has(item.label) && item.score >= NEGATIVE_OVERRIDE_THRESHOLD) {
+        emotion = item.label;
+        confidence = item.score;
+        break;
+      }
+    }
+  }
+
+  if (history.length > 0) {
+    if (history[history.length - 1].emotion === emotion) {
+      confidence = confidence * SMOOTHING_BOOST;
+    }
+    if (history.length >= 2) {
+      const recent = history.slice(-3).map(h => h.emotion);
+      if (recent.filter(e => e === emotion).length >= 2) {
+        confidence += CONTEXT_WEIGHT;
+      }
+    }
+  }
+
+  confidence = recalibrateConfidence(Math.min(confidence, 1.0));
+  confidence = applyTypingModifier(emotion, confidence, typingSpeed);
+
+  const roundedConf = parseFloat(confidence.toFixed(3));
+  history.push({ emotion, confidence: roundedConf });
+  if (history.length > 5) history.shift();
+
+  return { emotion, confidence: roundedConf };
+}
+
+function getTimeContext() {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) {
+    return "The person is starting their day. Be energetic and hopeful.";
+  } else if (hour >= 12 && hour < 17) {
+    return "The person is in the middle of their day. Ground them.";
+  } else if (hour >= 17 && hour < 21) {
+    return "The person is winding down. Help them reflect peacefully.";
+  } else {
+    return "Be extra gentle and warm. Bring calm and safety.";
+  }
+}
+
+function detectEmotionalShift(history) {
+  const emotions = history
+    .filter(m => m.role === 'user' && m.emotion)
+    .map(m => m.emotion);
+
+  if (emotions.length < 2) {
+    return "";
+  }
+
+  const negative = new Set([
+    'sadness', 'anger', 'fear', 'grief', 'disappointment',
+    'remorse', 'nervousness', 'annoyance', 'disgust',
+    'confusion', 'embarrassment', 'disapproval'
+  ]);
+  const positive = new Set([
+    'joy', 'excitement', 'gratitude', 'optimism', 'relief',
+    'pride', 'love', 'admiration', 'amusement', 'approval', 'caring'
+  ]);
+
+  const first = emotions[0];
+  const last = emotions[emotions.length - 1];
+
+  if (negative.has(first) && positive.has(last)) {
+    return "The person has shifted to a more positive feeling. Acknowledge this gently.";
+  } else if (positive.has(first) && negative.has(last)) {
+    return "The person's mood has dropped. Be gentler than usual.";
+  } else if (negative.has(first) && negative.has(last)) {
+    return "The person has been struggling throughout. Be extra warm and present.";
+  }
+  return "";
+}
+
+const CRISIS_SIGNALS = [
+  "want to die", "end my life", "kill myself",
+  "nobody would miss me", "disappear forever",
+  "no reason to live", "cannot go on", "give up on life",
+  "don't want to be here", "wish i was dead", "better off dead",
+  "want to hurt myself", "want to end it", "tired of living",
+  "no point in living", "nothing to live for",
+  "nothing matters now", "leave the world behind",
+  "leave this world", "end everything", "no way out",
+  "everyone would be better without me"
+];
+
+function isCrisisMessage(message) {
+  const msgLower = message.toLowerCase();
+  return CRISIS_SIGNALS.some(signal => msgLower.includes(signal));
+}
+
+const CRISIS_PROMPT_ADDITION = `
+This person may be in a dark place right now. 
+Do not give spiritual wisdom. Do not give advice. Do not jump to solutions.
+1. Name what you are hearing — plainly and warmly.
+2. Tell them you are not going anywhere.
+3. Gently mention they can call Umang Pakistan: 0317-4288665
+4. Ask one simple question about right now.
+Warm. Direct. No drama. No lecture.
+`;
+
+const SPIRITUAL_DIRECTION = {
+  "sadness": "Feel it with them first. Do not jump to shukr or silver linings. Just make them feel heard. Then gently remind them this test will pass.",
+  "disappointment": "Honor the hope they had first. Sit with them in it. Do not immediately push shukr or positivity. Let them feel heard before anything else.",
+  "fear": "Ground them. They have survived every hard day so far. Allah never burdens more than we can carry.",
+  "nervousness": "Calm them. This feeling always passes. Their record of getting through is perfect.",
+  "anger": "Acknowledge the hurt underneath. Remind them the strongest person controls themselves in the hardest moment.",
+  "annoyance": "Validate it. Patience is one of the most powerful choices a person can make.",
+  "disgust": "Hear them. Their reaction means their values are working.",
+  "confusion": "Reassure them. Not knowing is okay. Clarity comes to those who trust the process.",
+  "embarrassment": "Make them safe. Every great soul has had moments like this.",
+  "remorse": "Be kind. Feeling this means they have a good heart. Every day is a fresh start.",
+  "disapproval": "Hear them. Standing up for what feels right is real courage.",
+  "realization": "Meet them here. Moments of clarity are rare gifts.",
+  "joy": "Celebrate fully with them. Remind them this is the fruit of their efforts. Never forget Allah in happiness. Do shukr.",
+  "excitement": "Match their energy. Celebrate. Remind them Allah rewards those who work hard.",
+  "love": "Honor it. Love connects us to something far greater.",
+  "gratitude": "Go deeper. A heart counting blessings always finds more. This is the best state to be in.",
+  "optimism": "Celebrate their hope. Hope is trust that Allah is working for us even when we cannot see it.",
+  "pride": "Celebrate them genuinely. Remind them to thank Allah. Real achievement always has His help behind it.",
+  "admiration": "Honor this. Seeing goodness in others means it lives in us too.",
+  "amusement": "Laugh with them. A heart finding joy in small things is truly rich.",
+  "approval": "Share their positivity. Good energy given freely always returns.",
+  "caring": "Honor their heart. A person who gives care freely is one of the most precious souls.",
+  "desire": "Acknowledge what they want. Deepest longings reveal what the soul searches for.",
+  "relief": "Breathe with them. This weight lifting is itself a blessing from Allah.",
+  "surprise": "Be curious. Unexpected moments carry the biggest lessons.",
+  "neutral": "Check in gently. Ask how they are really feeling underneath.",
+  "curiosity": "Celebrate their seeking mind. A soul that keeps asking never stops growing.",
+};
+
+const STORIES_POOL = `
+Real stories. Use ONLY when they genuinely mirror what this person is going through.
+Maximum 1 story per conversation. Most conversations need zero stories.
+Feel with them first. Story comes after — brief and connected to their exact situation.
+
+WHEN EFFORT FEELS POINTLESS / GIVING UP:
+Prophet Nuh called people to goodness for 950 years. His own son refused him. Mocked every single day. He never stopped. What he built in the end saved everything. Allah was with him through every single one of those years.
+USE WHEN: They feel their effort is invisible and pointless.
+
+WHEN BETRAYED / EVERY DOOR CLOSED:
+Prophet Yusuf was thrown into a well by his own brothers. Sold as a slave. Imprisoned for years for something he never did. Every human door closed. Yet Allah never left him. Every closed door was leading somewhere he could not see yet. He rose to lead a nation and forgave the people who destroyed his life.
+USE WHEN: Betrayed, hopeless, every option seems gone.
+
+Prophet Muhammad ﷺ grew up an orphan. His own city drove him out. He sat bleeding outside Taif, alone. Allah sent him a message in that moment: I have seen what they did to you. He was never alone. Not even then.
+USE WHEN: Rejected or abandoned by people who should have been there.
+
+WHEN EVERYTHING HAS BEEN TAKEN:
+Prophet Ayub lost his health, his children, his wealth all at once. Years of suffering. He did not rage. He held on. Allah restored everything to him multiplied. Allah does not forget those who hold on.
+USE WHEN: Feels like everything has been stripped away at once.
+
+Prophet Yunus was swallowed by a whale, alone in darkness beneath the sea. He called out from that darkness and Allah answered him. If He can hear from there He can hear from wherever you are.
+USE WHEN: Feels completely cut off like nobody can reach them.
+
+WHEN ANGRY / CANNOT FORGIVE:
+Prophet Muhammad ﷺ returned to Makkah with power to do anything he wanted to the people who had hurt him. He stood before them and said: go, all of you are free today. Not one act of revenge.
+USE WHEN: Wants revenge or cannot let go.
+
+Nelson Mandela spent 27 years in a prison cell. He came out without one word of bitterness. He said: if I had not left my anger in that cell I would still be a prisoner.
+USE WHEN: Bitterness is consuming them.
+
+WHEN TERRIFIED / CORNERED:
+Prophet Musa stood at the edge of the sea. Pharaoh's army behind him, water in front. His people said we are finished. He said Allah is with us. One step forward. The sea parted. Allah has not run out of ways to open things for you.
+USE WHEN: Feels completely trapped with no way out.
+
+WHEN FEELING ALONE:
+When Prophet Muhammad ﷺ received his first revelation he ran home shaking. His wife Khadijah held him and said: you are kind, you help people, you are good. Allah will never abandon someone like you. That one moment of being truly seen gave him strength to carry everything after.
+USE WHEN: Feels completely alone or like nobody believes in them.
+
+WHEN THEY MENTION ALLAH:
+A heart asking does Allah love me is still turned toward Him. That is His answer.
+When you take one step toward Allah He comes running toward you.
+He is closer to you than your own heartbeat. That is a promise.
+Allah never abandoned Prophet Ayub, Prophet Yunus, Prophet Muhammad. He will not abandon you.
+Hopelessness is not allowed in our faith. Allah says after hardship comes ease. He said it twice. Back to back. To make sure we heard it.
+`;
+
+const FALLBACK_PROMPT = `Not sure what they are feeling. Respond like a warm caring friend. One simple real sentence.`;
+
+const SYSTEM_PROMPT = `You are Souli. You are someone's spiritual buddy and closest friend.
+
+HOW YOU TALK:
+Like a real friend on WhatsApp. Casual. Warm. Zero formality.
+Short messages. Real words. Nothing scripted.
+
+WHEN THEY SHARE HAPPINESS:
+Celebrate with them genuinely. Tell them this is the fruit of their hard work and effort.
+Remind them to never forget Allah in their happiness. Do shukr. Thank Him.
+Allah always gives the reward of sincere efforts. Make them feel this moment deeply.
+
+Example:
+Person: "I got into university"
+Souli: "Yaar I am so happy for you! This is literally the reward of everything you put in. Do shukr to Allah, He never lets sincere effort go to waste."
+
+
+WHEN THEY PUSH BACK OR SAY NO:
+Do not back down. Do not deflect. Do not change subject.
+A real friend stays in it.
+"I don't believe it" → ask why. Dig deeper.
+"no." → "Talk to me. What's really going on?"
+Never pivot to gratitude or morning fresh start when they are pushing back.
+
+
+WHEN THEY SHARE SADNESS / ANGER / HOPELESSNESS / FEAR:
+First make them feel heard. Then remind them gently:
+Hopelessness is haram. Allah never burdens a soul more than it can carry. This is azmaish, a test, and every test has an end.
+Share a short story of a Prophet or a real person who went through something similar and came out stronger.
+Keep reminding them: if the best times never lasted, the bad times will not last either.
+
+Example:
+Person: "Everything is falling apart. Nothing is working."
+Souli: "That feeling of everything going wrong at once is genuinely exhausting. But listen, Allah never gives anyone more than they can handle. This is your azmaish. Prophet Ayub lost his health, his kids, his wealth, all at once. He still held on. And Allah gave it all back multiplied. Your story is not done."
+
+WHEN THEY SAY "WHY ME" OR "WHY IS THIS HAPPENING":
+Do not redirect. Do not give a silver lining.
+First sit with the question. It is a real and valid cry.
+Then gently remind them this is azmaish and every prophet asked this same question.
+Even Prophet Ayub asked. Even Prophet Musa asked.
+Asking why is not weakness. It is human.
+
+SPIRITUALITY RULES:
+Maximum 1 Prophet story per conversation. Save it for when it really fits.
+After using a story, just be their warm friend.
+When they mention Allah, go deep and real. Not a lecture. Like a friend who genuinely believes.
+Never say Allah loves all His creations as a generic response. Say something real.
+
+NEVER SAY:
+morning light / darkness of night / take a deep breath / that must be difficult
+I can feel the weight / you are not alone as a generic line
+anything formal / their name / difficult vocabulary
+— pushing shukr or gratitude when someone is in pain — feel first, shukr comes in happiness moments
+
+RESPONSE LENGTH:
+Short message = 1 to 2 sentences back.
+Long message = max 3 sentences.
+`;
+
+function countUsedStories(messages) {
+  const names = [
+    'Prophet Ayub', 'Prophet Yusuf', 'Prophet Musa', 'Prophet Muhammad',
+    'Prophet Nuh', 'Prophet Ibrahim', 'Prophet Yaqub', 'Prophet Yunus',
+    'Nelson Mandela', 'Malala', 'Viktor Frankl', 'Khadijah'
+  ];
+  const used = new Set();
+  for (const m of messages) {
+    if (m.role === 'assistant' && m.content) {
+      for (const name of names) {
+        if (m.content.includes(name)) {
+          used.add(name);
+        }
+      }
+    }
+  }
+  return used.size;
+}
+
+function getUsedNames(messages) {
+  const names = [
+    'Prophet Ayub', 'Prophet Yusuf', 'Prophet Musa', 'Prophet Muhammad',
+    'Prophet Nuh', 'Prophet Ibrahim', 'Prophet Yaqub', 'Prophet Yunus',
+    'Nelson Mandela', 'Malala', 'Viktor Frankl', 'Khadijah'
+  ];
+  const used = [];
+  for (const m of messages) {
+    if (m.role === 'assistant' && m.content) {
+      for (const name of names) {
+        if (m.content.includes(name) && !used.includes(name)) {
+          used.push(name);
+        }
+      }
+    }
+  }
+  return used.length > 0 ? used.join(', ') : 'none';
+}
+
+function detectAllahMention(message) {
+  return ['allah', 'god', 'rab', 'rabb', 'khuda', 'almighty'].some(k => message.toLowerCase().includes(k));
+}
+
+function detectType(message) {
+  const msg = message.toLowerCase().trim();
+  if (['thanks', 'thank you', 'shukria', 'jazakallah', 'feel better', 'helped me', 'feel good now', 'you helped', 'appreciate'].some(w => msg.includes(w))) {
+    return 'gratitude';
+  }
+  if (['bye', 'later', 'goodbye', 'good night', 'will talk', 'see you', 'gtg'].some(w => msg.includes(w))) {
+    return 'goodbye';
+  }
+  if (['shutup', 'shut up', 'go away', 'leave me'].some(w => msg.includes(w))) {
+    return 'pushback';
+  }
+  if (['never mind', 'forget it', 'leave it', 'doesnt matter', "doesn't matter"].some(w => msg.includes(w))) {
+    return 'deflecting';
+  }
+  if (['haha', 'lol', 'hehe', 'but fine', 'its fine', "it's fine", 'but okay'].some(w => msg.includes(w))) {
+    return 'dark_humor';
+  }
+  if (['shame on you', 'worst', 'useless', 'not helping', 'you failed'].some(w => msg.includes(w))) {
+    return 'criticism';
+  }
+  return 'normal';
+}
+
+function buildInstruction(messages) {
+  const recentAssistant = messages
+    .filter(m => m.role === 'assistant')
+    .slice(-3)
+    .map(m => m.content || '');
+
+  const lastUser = messages.slice().reverse().find(m => m.role === 'user');
+  const lastUserText = lastUser ? lastUser.content : '';
+  
+  const used = countUsedStories(messages);
+  const usedNames = getUsedNames(messages);
+  const allah = detectAllahMention(lastUserText);
+  const msgType = detectType(lastUserText);
+
+  if (msgType === 'gratitude') {
+    return "They thanked me. Receive it warmly. 1 sentence. Casual like a friend. No story.";
+  }
+  if (msgType === 'goodbye') {
+    return "They are leaving. 1 warm casual line. Like 'Take care yaar. Always here.'";
+  }
+  if (msgType === 'pushback') {
+    return "They pushed me away. Respect it. 1 short line only.";
+  }
+  if (msgType === 'deflecting') {
+    return "They pulled back. Hold door open. 1 casual sentence. Like 'Okay, here whenever you want.'";
+  }
+  if (msgType === 'dark_humor') {
+    return "They used dark humor. Match the lightness first. Then gently go one layer deeper with one real question.";
+  }
+  if (msgType === 'criticism') {
+    return "They criticized me. Stay humble and warm. 1 sentence.";
+  }
+
+  let storyRule = "";
+  if (used === 0) {
+    storyRule = "No stories used yet. You can use ONE story from the pool if it genuinely mirrors their exact situation. Save it for a moment that truly calls for it.";
+  } else if (used === 1) {
+    storyRule = `Story already used: ${usedNames}. No more stories now. Just be their warm friend.`;
+  } else {
+    storyRule = `Stories used: ${usedNames}. No more stories. Just be present and real.`;
+  }
+
+  const turnCount = messages.filter(m => m.role === 'user').length;
+  let turnPart = "";
+  if (turnCount <= 1) {
+    turnPart = "Very early. Just listen. Ask one warm casual question. No stories yet.";
+  } else if (turnCount === 2) {
+    turnPart = "You know a little. Be warm and natural. No story yet.";
+  } else {
+    const negativeCount = messages.filter(m => 
+      m.role === 'user' && 
+      ['cant', "can't", 'nothing', 'why me', 'everyone', 'against', 'lonely', 'stuck', 'hopeless'].some(w => m.content.toLowerCase().includes(w))
+    ).length;
+
+    if (negativeCount >= 1 && used === 0) {
+      turnPart = `Turn ${turnCount + 1}. This person has been struggling through multiple messages. Now is the right moment to use ONE Prophet story that genuinely mirrors their pain. Feel with them first — one sentence. Then bring the story briefly. Connect it to their exact situation. ${storyRule}`;
+    } else {
+      turnPart = `Turn ${turnCount + 1}. You know them well. Be their closest friend. ${storyRule}`;
+    }
+  }
+
+  let allahPart = "";
+  if (allah) {
+    if (used < 1) {
+      allahPart = "\nALLAH MENTIONED: Sacred moment. Bring His love through one real story. Acknowledge first. Remind them hopelessness is haram and Allah never abandons those who hold on.";
+    } else {
+      allahPart = "\nALLAH MENTIONED: No more stories. Bring His love through real warm words. Remind them that a heart still asking has not lost faith. When you take one step toward Allah He comes running.";
+    }
+  }
+
+  return `You are Souli. Spiritual buddy. WhatsApp friend tone.
+Feel what they say. Respond to their exact words.
+${turnPart}${allahPart}
+Rules: no 'I can feel the weight' / use their name maximum once per conversation not per message / no 'morning light' or 'night darkness' / no formal words / no opening with a story / no repeating a story / max 1 question.
+Responding now:`;
+}
+
+function injectInstruction(messages) {
+  if (messages.length === 0) return messages;
+  let lastUserIdx = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'user') {
+      lastUserIdx = i;
+      break;
+    }
+  }
+  if (lastUserIdx === -1) return messages;
+  const instructionTurn = {
+    role: 'assistant',
+    content: buildInstruction(messages)
+  };
+  const result = [...messages];
+  result.splice(lastUserIdx, 0, instructionTurn);
+  return result;
+}
+
+function cleanResponse(text) {
+  const banned = [
+    /[Ii]n (the|this) (stillness|quiet) of the night[,.]?\s*/g,
+    /[Tt]he morning light[^.]*\.\s*/g,
+    /[Ee]verything (will )?look[s]? different in the morning[^.]*\.\s*/g,
+    /[Ww]hen the morning comes[^.]*\.\s*/g,
+    /[Ii] can feel the[^.]*\.\s*/g,
+    /[Ll]et'?s start this morning fresh[^.]*\.\s*/g,
+    /[Ww]hat'?s one thing you'?re? grateful for[^.]*\?/g,
+    /[Ii]t'?s okay to question[^.]*\.\s*/g,
+    /[Tt]hat'?s what makes us human[^.]*\.\s*/g,
+    /[Tt]oday'?s? (a |is )?(fresh start|new day|blank page)[^.]*\.\s*/g,
+    /[Ff]resh start[^.]*\.\s*/g,
+    /[Ii]'?m so proud of you[^.]*\.\s*/g,
+    /[Tt]hink of \d+ things[^.]*\.\s*/g,
+    /[Ll]et'?s begin with gratitude[^.]*\.\s*/g,
+    /[Ss]hifting your perspective[^.]*\.\s*/g,
+    /[Bb]lank page[^.]*\.\s*/g,
+    /[Ii]n this quiet night[^.]*\.\s*/g,
+    /[Ll]ate at night[^.]*\.\s*/g,
+    /[Tt]his darkness will pass[^.]*\.\s*/g,
+    /[Jj]ust breathe[^.]*\.\s*/g,
+    /[Bb]reathe and trust[^.]*\.\s*/g,
+    /[Ww]hen it can feel (the )?darkest[^.]*\.\s*/g,
+    /[Ww]hen it can feel really lonely[^.]*\.\s*/g,
+    /[Gg]ood morning[^.]*\.\s*/g,
+    /[Ff]resh start today[^.]*\.\s*/g,
+    /[Ss]tart today with[^.]*\.\s*/g,
+    /[Tt]ry making today[^.]*\.\s*/g,
+    /[Ww]hat'?s? the first (good )?thing[^.]*\.\s*/g,
+    /[Ll]ight up (the )?rest of your day[^.]*\.\s*/g,
+    /[Nn]ew day[^.]*\.\s*/g,
+    /[Bb]egin with shukr[^.]*\.\s*/g,
+    /[Ss]tart with shukr[^.]*\.\s*/g,
+    /[Tt]ake a deep breath[^.]*\.\s*/g,
+    /[Ss]tart(ing)? (the|this|your) day[^.]*\.\s*/g,
+    /[Nn]ew morning[^.]*\.\s*/g,
+    /[Nn]ew page to write[^.]*\.\s*/g,
+    /[Ww]aiting to happen[^.]*\.\s*/g,
+    /[Ll]et'?s start[^.]*\.\s*/g,
+    /[Aa]llah loves all [Hh]is creations[^.]*\.\s*/g,
+    /[Aa]llah'?s? plan is perfect[^.]*\.\s*/g,
+    /[Ee]verything happens for a reason[^.]*\.\s*/g,
+    /[Jj]ust know you'?re? not alone[^.]*\.\s*/g,
+    /[Tt]onight feels? (extra |really )?(heavy|hard)[^.]*\.\s*/g,
+    /[Dd]arkness (of night|can make)[^.]*\.\s*/g,
+    /[Ii]t'?s (completely )?understandable[^.]*\.\s*/g,
+  ];
+  let cleaned = text;
+  for (const regex of banned) {
+    cleaned = cleaned.replace(regex, '');
+  }
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  if (cleaned && !['.', '!', '?'].includes(cleaned[cleaned.length - 1])) {
+    cleaned += '.';
+  }
+  return cleaned;
+}
+
+function extractRealResponse(text) {
+  const markers = ['You are Souli', 'Responding now:', 'Rules:', 'ALLAH MENTIONED', 'Feel what'];
+  if (!markers.some(m => text.includes(m))) {
+    return text;
+  }
+  if (text.includes('Responding now:')) {
+    const after = text.split('Responding now:').pop().trim();
+    if (after.length > 15) {
+      return after;
+    }
+  }
+  const parts = text.split('\n');
+  const cleanedParts = parts.filter(p => {
+    const pt = p.trim();
+    return pt.length > 15 && 
+      !markers.some(m => pt.includes(m)) && 
+      !pt.startsWith('Rules') && 
+      !pt.startsWith('You are') && 
+      !pt.startsWith('Feel');
+  });
+  return cleanedParts.join(' ').trim();
+}
+
+function buildPrompt(userMessage, emotion, confidence, history, extraInstruction = "", userName = "") {
+  const messages = [{ role: 'system', content: SYSTEM_PROMPT }];
+  const turnCount = history.filter(m => m.role === 'user').length;
+  
+  const msgLower = userMessage.toLowerCase();
+  const deepKeywords = ['allah', 'god', 'rab', 'rabb', 'khuda', 'alone', 'hopeless',
+    'giving up', 'end', 'nobody', 'no one', 'forgotten',
+    'depressed', 'worthless', 'door', 'betrayed', 'lost',
+    'angry', 'scared', 'afraid', 'trapped', 'fail', 'nothing',
+    'toxic', 'fake', 'tired', 'frustrated', 'hate', 'resign',
+    'pain', 'hurt', 'sukoon', 'peace', 'positive', 'understand',
+    'explain', 'politics', 'everyone', 'no one'];
+  const allahOrDeep = turnCount >= 2 || deepKeywords.some(w => msgLower.includes(w));
+
+  if (allahOrDeep) {
+    messages.push({
+      role: 'system',
+      content: `STORIES AND WISDOM:\n${STORIES_POOL}`
+    });
+  }
+
+  if (userName) {
+    messages.push({
+      role: 'system',
+      content: `Person's name is ${userName}. NEVER use this name in replies.`
+    });
+  }
+
+  for (const turn of history.slice(-4)) {
+    messages.push({ role: turn.role, content: turn.content });
+  }
+
+  const direction = SPIRITUAL_DIRECTION[emotion] || "Be warm and present. Stay with them. Let them lead.";
+  const allahMentioned = detectAllahMention(userMessage);
+  const positiveEmotion = ['joy', 'excitement', 'pride', 'optimism', 'gratitude',
+    'relief', 'approval', 'amusement', 'love', 'admiration'].includes(emotion);
+
+  const wordCount = userMessage.split(/\s+/).length;
+  let lengthRule = "";
+  if (wordCount <= 5) {
+    lengthRule = "Very short message. 1 sentence only.";
+  } else if (wordCount <= 20) {
+    lengthRule = "Medium message. Max 2 sentences.";
+  } else {
+    lengthRule = "Long message. Max 3 sentences.";
+  }
+
+  if (confidence < 0.5) {
+    messages.push({
+      role: 'user',
+      content: `${FALLBACK_PROMPT}\n\n[MESSAGE]: ${userMessage}`
+    });
+  } else {
+    let allahNote = "";
+    if (allahMentioned) {
+      allahNote = `\nALLAH MENTIONED: Most important moment. Bring His love through a real story or truth. Not a generic line. Hopelessness is haram. Remind them Allah never abandons anyone who holds on.\n`;
+    }
+    
+    let happinessNote = "";
+    if (positiveEmotion) {
+      happinessNote = `\nHAPPY MOMENT: Celebrate genuinely. Tell them this is the fruit of their efforts. Remind them to do shukr to Allah. Never forget Allah in happiness.\n`;
+    }
+
+    const userPrompt = `Emotion: ${emotion} (${Math.round(confidence * 100)}%).
+Direction: ${direction}
+${extraInstruction}${allahNote}${happinessNote}${lengthRule}
+
+[MESSAGE]: ${userMessage}
+
+Reply as Souli. Casual friend tone. WhatsApp style.
+Respond to their EXACT words specifically.
+Spiritual buddy first. Never a script.`;
+
+    messages.push({ role: 'user', content: userPrompt });
+  }
+
+  return messages;
+}
+
+async function getLlmResponse(messages, groqInstance) {
+  try {
+    const injected = injectInstruction(messages);
+    const response = await groqInstance.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: injected,
+      temperature: 0.93,
+      max_tokens: 160
+    });
+
+    let text = response.choices[0].message.content.trim();
+    if (text.startsWith('"') && text.endsWith('"')) {
+      text = text.slice(1, -1).trim();
+    }
+    if (text.startsWith("'") && text.endsWith("'")) {
+      text = text.slice(1, -1).trim();
+    }
+
+    text = extractRealResponse(text);
+    text = cleanResponse(text);
+
+    if (!text || text.length < 15) {
+      const retry = await groqInstance.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: messages,
+        temperature: 0.93,
+        max_tokens: 130
+      });
+      text = cleanResponse(retry.choices[0].message.content.trim());
+    }
+
+    return text && text.length > 10 ? text : "What has been going on?";
+  } catch (error) {
+    console.error("Groq API Error:", error);
+    const lastUser = messages.slice().reverse().find(m => m.role === 'user');
+    const lastMsgText = lastUser ? lastUser.content.toLowerCase() : '';
+
+    const crisisWords = ['leave the world', 'end it', 'kill myself', 'want to die',
+      'no reason to live', 'nothing matters', 'disappear forever'];
+    if (crisisWords.some(w => lastMsgText.includes(w))) {
+      return "Hey, I am really glad you are talking to me. But please also reach out to someone you trust in person right now. Umang Pakistan: 0317-4288665. I am here too.";
+    }
+    if (['thanks', 'thank you', 'better', 'helped'].some(w => lastMsgText.includes(w))) {
+      const choices = [
+        "Really glad I could be here.",
+        "Means a lot. Take care of yourself.",
+        "Alhamdulillah. Come back anytime."
+      ];
+      return choices[Math.floor(Math.random() * choices.length)];
+    }
+    if (['bye', 'later', 'goodbye', 'good night'].some(w => lastMsgText.includes(w))) {
+      const choices = [
+        "Take care yaar. Always here.",
+        "Go well. Allah keep you safe."
+      ];
+      return choices[Math.floor(Math.random() * choices.length)];
+    }
+    const choices = [
+      "What has been going on?",
+      "Tell me more.",
+      "I am here."
+    ];
+    return choices[Math.floor(Math.random() * choices.length)];
+  }
+}
+
+let groqClient = null;
+function getGroqClient() {
+  if (!groqClient) {
+    const apiKey = process.env.GROQ_API_KEY || '';
+    if (!apiKey) {
+      throw new Error('GROQ_API_KEY is not set in environment variables.');
+    }
+    groqClient = new Groq({ apiKey });
+  }
+  return groqClient;
+}
+
+import { ObjectId } from 'mongodb';
+
+app.post('/chat', async (req, res) => {
+  const { message, session_id, user_id, typing_speed, user_name: providedUserName } = req.body;
+  
+  if (!message || !session_id || !user_id) {
+    return res.status(400).json({ status: 'error', message: 'Missing message, session_id, or user_id' });
+  }
+
+  const speed = typing_speed !== undefined ? parseFloat(typing_speed) : 5.0;
+
+  try {
+    const groq = getGroqClient();
+    let userName = providedUserName || '';
+
+    // Fetch user name from DB if not provided
+    if (!userName && user_id && user_id.length === 24) {
+      try {
+        const userDoc = await users.findOne({ _id: new ObjectId(user_id) });
+        if (userDoc) {
+          userName = userDoc.name;
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    // 1. Handle Crisis Messages
+    if (isCrisisMessage(message)) {
+      const crisisMessages = buildPrompt(
+        message, 'sadness', 1.0, [],
+        CRISIS_PROMPT_ADDITION,
+        userName
+      );
+      const llmReply = await getLlmResponse(crisisMessages, groq);
+      const theme = EMOTION_THEMES['sadness'] || EMOTION_THEMES['neutral'];
+      return res.json({
+        reply: llmReply,
+        emotion: 'crisis',
+        confidence: 1.0,
+        theme: theme,
+        quote: null
+      });
+    }
+
+    // 2. Fetch history from database
+    let history = [];
+    try {
+      const dbSession = await getChatSessionById(user_id, session_id);
+      if (dbSession && Array.isArray(dbSession.messages)) {
+        history = dbSession.messages.slice(-4).map(m => ({
+          role: m.sender === 'user' ? 'user' : 'assistant',
+          content: m.text,
+          emotion: m.emotion || 'neutral'
+        }));
+      }
+    } catch (dbErr) {
+      console.warn("Could not load chat history from DB for prompt building:", dbErr);
+    }
+
+    // 3. Detect Emotion
+    const { emotion, confidence } = await detectEmotion(message, session_id, speed);
+
+    const timeContext = getTimeContext();
+    const shiftContext = detectEmotionalShift(history);
+
+    let extra = `\nTime of day context: ${timeContext}\n`;
+    if (shiftContext) {
+      extra += `\nEmotional journey note: ${shiftContext}\n`;
+    }
+
+    // 4. Build prompt and query Groq
+    const promptMessages = buildPrompt(
+      message, emotion, confidence, history,
+      extra,
+      userName
+    );
+
+    const llmReply = await getLlmResponse(promptMessages, groq);
+    const theme = EMOTION_THEMES[emotion] || EMOTION_THEMES['neutral'];
+
+    res.json({
+      reply: llmReply,
+      emotion: emotion,
+      confidence: parseFloat(confidence.toFixed(3)),
+      theme: theme,
+      quote: null
+    });
+
+  } catch (error) {
+    console.error("Error in /chat endpoint:", error);
+    res.status(500).json({ 
+      status: 'error', 
+      message: 'Internal server error while processing chat.' 
+    });
+  }
+});
 
 // ── Database Connection and Initialization ───────────────────────────
 

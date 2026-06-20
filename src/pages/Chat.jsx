@@ -226,8 +226,8 @@ export default function Chat() {
             firstKeyStrokeTimeRef.current = null; // reset for next metric
         }
 
-        // 3. Fire real-time request to the Python FastAPI backend
-        const apiURL = `${import.meta.env.VITE_MODEL_URL || "http://127.0.0.1:8000"}/chat`;
+        // 3. Fire real-time request to the Node.js backend
+        const apiURL = `${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/chat`;
         const sessionId = getOrCreateSessionId();
         const userId = getOrCreateUserId();
 
